@@ -26,6 +26,7 @@
     "lib/ask.js",
     "lib/answer.js",
     "lib/material.js",
+    "lib/open-external.js",
     "lib/flow-svg.js",
     "lib/seq-svg.js",
     "lib/svg-text.js",

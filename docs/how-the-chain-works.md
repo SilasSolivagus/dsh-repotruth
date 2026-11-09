@@ -77,22 +77,25 @@
 
 | 方法 | 路径 | 作用 | 谁在调 |
 |---|---|---|---|
-| GET | `/api/repo-truth/health` | 自检：版本、署名开关、数据/镜像/索引目录 | 安装后自检、排查 |
+| GET | `/api/repo-truth/health` | 自检：版本、署名开关、数据/镜像/索引目录、**agent 工具状态** | 安装后自检、排查 |
 | GET | `/api/repo-truth/config` | 代码源（令牌只有掩码）+ 署名开关 | 代码源页、仓库页 |
 | POST | `/api/repo-truth/hosts` | 新增/修改代码源（`originalName` 即修改；空令牌=沿用） | 代码源页 |
 | POST | `/api/repo-truth/hosts/delete` | 删除代码源 | 代码源页 |
 | POST | `/api/repo-truth/test` | 测试连接（一次只读 GET） | 代码源页、表单直测 |
 | GET | `/api/repo-truth/source-repos?name=<源>` | 列出该源上可见仓库（与「测试连接」同一份请求拼装） | 仓库页「从代码源选择」 |
-| GET | `/api/repo-truth/repos` | 已接入的仓 + 当前任务 | 仓库页、问一句页 |
+| GET | `/api/repo-truth/repos` | 已接入的仓 + 当前任务 | 面板「仓库」页签 |
 | POST | `/api/repo-truth/repos` | 接入一个仓（`url` 或 `owner/name`），**立即起任务** | 仓库页 |
 | POST | `/api/repo-truth/repos/sync` | 手动同步；同仓并发 → 409 + 中文原因 | 仓库页 |
 | POST | `/api/repo-truth/repos/delete` | 移除仓，并删本机镜像与索引文件 | 仓库页 |
 | GET | `/api/repo-truth/jobs?id=&repo=` | 任务列表 / 单任务（进度轮询） | 仓库页（1.2s 一次，只在有任务时） |
-| POST | `/api/repo-truth/ask` | 问一句；返回正文段落、限界框、候选、材料 URL | 问一句页 |
+| POST | `/api/repo-truth/ask` | 问一句；返回正文段落、限界框、候选、材料 URL | 命令行 / 测试（界面上入口已删） |
 | GET | `/api/repo-truth/answers/<id>.html` | 打开完整材料（含折叠的研发参考） | 面板里的链接 |
-| POST | `/api/repo-truth/materials` | 需求走查：一句需求 → 三栏材料；没命中返回 `found:false` 且不给 URL | 主界面「需求走查」页签 |
-| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（内嵌与新窗口同一地址） | 页签里的 iframe / 新窗口 |
+| POST | `/api/repo-truth/materials` | 需求走查：一句需求 → 三栏材料；没命中返回 `found:false` 且不给 URL；**不弹窗** | 命令行 / curl / 测试 |
+| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（单文件 HTML） | 系统默认浏览器（`open` / `xdg-open` / `start`） |
 | GET | `/api/repo-truth/coverage` | 覆盖率表（真数据） | 覆盖率页 |
+
+除 HTTP 路由之外还有一条 **agent 工具**：`repotruth_material{question, repo?}`
+（不进 HTTP 表，因为没有路径；见 §9）。
 
 写盘只有一处：**索引文件由子进程写，登记表与覆盖率只由宿主写**。
 两处都写同一份文件，迟早出现「表里 412 行、索引 0 行」。宿主的写入串行化（`persistChain`）。
@@ -255,9 +258,22 @@ grpc-go ·            其中：测试 453 · 第三方 162 · 素材 0 · 认不
 ### 7.6 测试与变异验证
 
 ```
-npm test → 57 个用例全绿
+npm test → 68 个用例全绿（原有 57 + 界面表面 11）
 node scripts/mutation-check.mjs → 拦得住 22/22
 ```
+
+界面表面的 6 条变异（M23–M28）：chip 挪回 `conversation.view`、面板挪出 `shell.overlay`、
+设置里长出第二个分区、chip 文案改掉、Windows 打开命令写错、工具不注册——
+六条都实测变红再还原（用例在 `test/surface.test.js`，`npm test` 里一起跑）。
+
+| 编号 | 规则 | 改坏哪里 | 结果 |
+|---|---|---|---|
+| M23 | chip 必须在 `conversation.input.right` | 槽位改成 `conversation.view` | 变红 ✓（4 条） |
+| M24 | 面板必须在 `shell.overlay` | 槽位改成 `main` | 变红 ✓（2 条） |
+| M25 | 设置只剩「代码源」 | 再加一个 `settings.section` | 变红 ✓（2 条） |
+| M26 | chip 文案就是 `repotruth` | `dockName` 改成别的 | 变红 ✓（1 条） |
+| M27 | win32 必须 `cmd /c start "" <url>` | 改成 `start <url>` | 变红 ✓（1 条） |
+| M28 | 工具必须注册进 `tools` | 去掉 `ctx.inject(['tools'], …)` | 变红 ✓（2 条） |
 
 | 编号 | 规则 | 改坏哪里 | 结果 |
 |---|---|---|---|
@@ -373,14 +389,15 @@ walkthrough.html#node=<id>&state=<组>/<状态>    ← 有状态组时，停在�
 
 理由很直接：一张空的三栏页会让人以为「这件事就是这样」，而实际上是「查过、没命中」。
 
-### 两个入口，一份实现
+### 三个入口，一份实现
 
 | 入口 | 位置 | 走的是 |
 |---|---|---|
-| 主界面「需求走查」页签 | 对话视图的一个 View（**不在设置里**） | `POST /api/repo-truth/materials` → `lib/material.js` |
+| **agent 工具 `repotruth_material`**（主路） | 需求写在 DSH 的聊天框里，agent 自己调 | `createMaterial` → `lib/material.js` → `openInBrowser` |
+| `POST /api/repo-truth/materials` | 命令行、curl、测试用；**不带弹窗副作用** | `createMaterial` -> `lib/material.js` |
 | 命令行 `material` | `npx dsh-plugin-repotruth material <仓名> --question "…"` | `lib/material.js` 的 `runMaterial` |
 
-两条入口都调 `askQuestion`，所以「问一句」与「走查」不会给出两批候选。
+三条入口都调 `askQuestion`，所以不会给出三批候选。
 
 ### 实测（本机，vue-admin-template @ 4c18a3f4，68 个可读文件）
 
@@ -395,9 +412,118 @@ material vue-admin-template --question "优惠券核销与发票开具"
 `npm test` 里有 11 条用例守这份材料：没命中不画、无页面必出时序、参与者词表封闭、
 `data-node` 与 `anno-body` 的联动、深链、署名与 meta、正文禁词、宿主两条路由。
 
+
 ---
 
-## 9. 还没做、但下一步该做的
+## 9. 界面表面：chip → 面板 → 浏览器（第三次改版后的事实）
+
+需求从聊天框进来，配置在右侧面板里，材料在浏览器里看。插件自己**不开输入框**、
+**不内嵌 iframe**、**不占右栏**。
+
+```
+┌──────────────────────────── DSH 会话页 ────────────────────────────┐
+│  聊天记录                                                          │
+│                                                                    │
+│  「分享页要支持未登录下载但只有会员能下」   ← 需求只在这里出现        │
+│        │                                                           │
+│        │ agent 调工具 repotruth_material{question}                  │
+│        ▼                                                           │
+│  材料落盘 materials/<id>.html ──► 宿主 open <url> ──► 默认浏览器里的三栏页
+│                                                                    │
+│  ┌ 输入框 ──────────────────────────────────┐   ┌─ 右侧面板 ──────┐ │
+│  │  +  完全权限        [repotruth]  模型  发送 │   │ repotruth  收起 │ │
+│  └──────────────────────────────────────────┘   │ 代码源│仓库│覆盖率│ │
+│         ▲ chip（conversation.input.right）       │ （shell.overlay）│ │
+│         │ 点开/收起同一份状态                    └──────────────────┘ │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### 三个槽位，一处不改第二遍
+
+| 表面 | 槽位 | 注册 id | 说明 |
+|---|---|---|---|
+| chip | `conversation.input.right` | `repo-truth-chip` | 文案就一个词 `repotruth`，点开/收起面板 |
+| 配置面板 | `shell.overlay` | `repo-truth-panel` | 贴右边缘、整屏高、520–620px，标题栏 + 收起 |
+| 设置 → 代码源 | `settings.section` | `repo-truth-sources` | **设置里只留这一个** |
+
+`conversation.view` 页签、设置里的「仓库 / 问一句 / 覆盖率」三个分区**全部删掉**：
+一个面只留一个入口，否则同一个动作在两处出现，第二次点击总有一处是错的。
+
+面板内的三个页签复用同一批组件：`SourcesPage`（代码源）、`ReposPage`（仓库：接入 / 同步 / 移除）、
+`CoveragePage`（覆盖率）。因为面板只有 520–620px，仓库与覆盖率从表格改成了卡片：
+七列表格会把「同步 / 移除」挤出屏幕，而那两个按钮正是这两页唯一要动手的地方。
+
+### 为什么面板打开时整页要让开一条
+
+`shell.overlay` 是 `position:absolute; inset:0; pointer-events:none` 的浮层，
+盖住谁它都不管。但盖住发送按钮就等于把聊天框废掉——而需求正是在那个框里打的。
+所以面板打开时给外层 frame 加 `padding-right`（= 面板宽度），关掉再抹掉：
+浮层那块空出来的地方正好放面板，中间的内容自己收窄，发送按钮永远在线。
+
+### 选了 (a) 宿主工具，不是 (b) 读最后一条用户消息
+
+```js
+ctx.inject(['tools'], (host) => host.tools.register(materialToolDefinition(() => ctx.webServer.getOrigin())))
+```
+
+- 需求本来就打在聊天框里，agent 读得到；让它**调一次工具**，材料的生成就发生在
+  「agent 已经理解这句需求」之后，而不是插件去猜哪条消息算需求。
+- 插件不必维护「最新一条用户消息」的快照、不必判断工具调用与消息的先后、
+  也不必在会话切换时清理状态——这三件事每一件都会在真实使用里出错。
+- 工具是**可选注入**：`inject(['tools'], …)` 而不是写进静态 `inject`。
+  宿主没有 `tools` 服务时插件照旧起（面板、设置都在），只是没人能把材料打开；
+  自检 `/health` 里能读到 `tool`、`toolInAgentList`、`toolError` 三个字段。
+
+工具的返回里带**绝对地址**，所以对话里也能看到那条 URL：能重开、能转发。
+
+### 打开浏览器：三平台三条命令，url 只作为参数
+
+| 平台 | 命令 |
+|---|---|
+| macOS | `open <url>` |
+| Linux | `xdg-open <url>` |
+| Windows | `cmd /c start "" <url>`（`start` 是 cmd 内建；空串占住标题位，否则 url 会被当标题） |
+
+url 永远走 `argv`，不拼 shell 字符串：拼字符串等于把地址当命令执行。
+另外只放行**本机** http(s)（127.0.0.1 / [::1] / localhost）且要求字符串能原样往返 `new URL()`，
+否则一律拒绝并且**不 spawn**。
+
+### 实测（本机，`--profile repo-truth-gui --port 60555`）
+
+```
+$ node -e "import('./lib/index.js').then(m => m.generateMaterialAndOpen({
+    question: '分享页要支持未登录下载但只有会员能下',
+    repo: 'vue-admin-template',
+    origin: 'http://127.0.0.1:60555' }))"
+材料已生成：基于 vue-admin-template，3 个节点。已在默认浏览器打开：
+http://127.0.0.1:60555/api/repo-truth/materials/mw92ufq0-lb1whm.html
+
+$ open "http://127.0.0.1:60555/api/repo-truth/materials/mw92ufq0-lb1whm.html"
+exit=0
+
+$ ls -l ".../repo-truth/materials/mw92ufq0-lb1whm.html"
+-rw-------  36484  mw92ufq0-lb1whm.html        # 36 KB 单文件三栏页，600
+
+$ curl -o /dev/null -w "%{http_code}" .../mw92ufq0-lb1whm.html
+200
+```
+
+截图（都是 headless Chrome，1280×720）：`docs/images/composer-chip.png`、
+`docs/images/panel-sources.png`、`docs/images/panel-repos.png`、`docs/images/panel-coverage.png`。
+
+### 改了之后要重启还是刷新
+
+| 改了哪半边 | 宿主（`lib/index.js`、`lib/open-external.js`） | 浏览器（`lib/client.js`） |
+|---|---|---|
+| 生效方式 | **必须重启宿主**：`dsh-hmr` 只监听 profile 配置，不监听插件源码 | `dsh-client-hmr` 约 500ms 换一次 bundle，**不用刷新页面** |
+
+工具是在宿主半边注册的，所以「第一次装好 / 每次改宿主」都得重启一次宿主
+（桌面版：退出 DeepSeek Harness 再打开；自建 profile：重跑 `dsh --profile … --port …`）。
+重启后自检里应看到 `"tool": "repotruth_material"`、`"toolInAgentList": true`。
+
+---
+
+## 10. 还没做、但下一步该做的
 
 1. **问一句的召回**：现在只认「名字里有的词」。同义词表是手写的 50 条，覆盖不到业务黑话。
    下一步该做的是「用户点一次『不是这个』就记一笔」，而不是再堆词表。

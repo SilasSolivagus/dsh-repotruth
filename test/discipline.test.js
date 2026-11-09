@@ -62,12 +62,13 @@ test('包名、模块 id、bundle 行三处必须一致（否则浏览器半边�
   assert.ok(patch.includes(pkg.name), 'bundle patch 里必须引用同一个包名')
 })
 
-test('浏览器半边能编译，且注册了四个分区', () => {
+test('浏览器半边能编译，且设置里只剩一个分区', () => {
   const text = readFileSync(join(root, 'lib/client.js'), 'utf8')
   // 只编译不执行：它顶层会用到 window，但语法错误必须在测试里就暴露。
   assert.doesNotThrow(() => new vm.Script(text, { filename: 'client.js' }))
-  for (const id of ['repo-truth-sources', 'repo-truth-repos', 'repo-truth-ask', 'repo-truth-coverage']) {
-    assert.ok(text.includes(`id: '${id}'`), `缺少设置分区 ${id}`)
+  assert.ok(text.includes(`id: 'repo-truth-sources'`), '缺少设置分区 repo-truth-sources')
+  for (const gone of ['repo-truth-repos', 'repo-truth-ask', 'repo-truth-coverage', 'repo-truth-walkthrough']) {
+    assert.equal(text.includes(`id: '${gone}'`), false, `设置/页签入口 ${gone} 应该已经去掉`)
   }
 })
 

@@ -30,7 +30,7 @@ npx dsh-plugin-repotruth material vue-admin-template --question "用户登录页
 
 ## 两份产物，别混着读
 
-| | **系统现状**（`demo` / 设置 → 覆盖率） | **需求走查**（`material` / 主界面「需求走查」） |
+| | **系统现状**（`demo` / 面板「覆盖率」页签） | **需求走查**（`material` / 聊天框说一句 → 默认浏览器打开） |
 |---|---|---|
 | 回答什么 | 这个仓里有什么：多少页面、每页多大、改一处波及几处 | 这件事现在怎么走：落到哪几个节点、每个节点有什么、哪里要问研发 |
 | 输入 | 一个仓地址 | 一个仓 + 一句中文需求 |
@@ -71,11 +71,11 @@ npx dsh-plugin-repotruth material vue-admin-template --question "用户登录页
 
 | 步骤 | 在界面上 | 干了什么 | 产出 |
 |---|---|---|---|
-| 1 接入 | 设置 → 仓库 → 接入仓库 | 把仓克隆成本机 bare 镜像；之后只 `fetch`，不重克隆 | `mirrors/<仓名>.git` |
-| 2 建索引 | 同一个按钮，进度自己走 | 列树 → 只解析没见过的内容块 → 写一份 JSON | `index/<仓名>.json` |
-| 3 问一句 | 设置 → 问一句 | 用一句中文问，只查本机索引回答 | `answers/<id>.html` + 面板里的正文 |
-| 4 需求走查 | 主界面 →「需求走查」页签 | 一句需求 → 归节点 → 页面结构 / 时序骨架 / 标注 | `materials/<id>.html`（单文件三栏页） |
-| 5 覆盖率 | 设置 → 覆盖率 | 每个仓「接进来 / 看得见 / 看不见」的账 | `coverage.json` |
+| 1 接入 | 输入框右侧 `repotruth` → 面板「仓库」→ 接入仓库 | 把仓克隆成本机 bare 镜像；之后只 `fetch`，不重克隆 | `mirrors/<仓名>.git` |
+| 2 建索引 | 同一个动作，进度自己走 | 列树 → 只解析没见过的内容块 → 写一份 JSON | `index/<仓名>.json` |
+| 3 说需求 | DSH 的聊天输入框 | 一句中文需求由 agent 交给 `repotruth_material` | `materials/<id>.html`（单文件三栏页） |
+| 4 看材料 | 自动打开系统默认浏览器 | 左节点 / 中页面或时序 / 右标注，点节点原地换 | `materials/<id>.html`（路由提供，浏览器直接看） |
+| 5 配置与盘点 | 输入框右侧 `repotruth` → 面板（代码源 / 仓库 / 覆盖率） | 填地址、看同步进度、看覆盖账 | `coverage.json` |
 
 克隆与建索引都跑在**独立子进程**里，每个仓一套硬超时。宿主进程从头到尾不等它们——
 卡在 DNS、卡在凭据提示、卡在一个几十万文件的树里，界面照样能用，到点自动杀。
@@ -167,10 +167,12 @@ npx dsh-plugin-repotruth demo <仓地址> --no-attribution   # 本次不带页�
 - **接入仓库**：填完整地址，或 `owner/name`（按代码源的地址规则拼）；同名仓自动加 `-2`，绝不覆盖已有索引。
 - **同步**：首次 `git clone --mirror`，之后 `git fetch --prune`。进度靠面板轮询 `/jobs`（不开 websocket）。
 - **移除**：从登记表删掉，并删掉本机镜像与索引文件（只删我们自己的 `mirrors/`、`index/` 下的东西）。
-- **问一句**：只读本机索引出材料，正文产品语言 + 限界框 + 末尾折叠的研发参考 + 署名。
-- **需求走查**：主界面「需求走查」页签里写一句中文需求 → 生成三栏材料（左节点 / 中页面结构或时序骨架 / 右标注 + 待研发确认），
-  面板里内嵌同一份 HTML，也能「在新窗口打开」。没命中就说没命中，**不生成空的三栏页**。
-  和命令行 `material` 走的是同一份实现（`lib/material.js`），不存在两份产物两个口径。
+- **需求走查**：需求写在 DSH 自己的聊天框里；agent 读得到，调 `repotruth_material{question}`
+  → 生成三栏材料（左节点 / 中页面结构或时序骨架 / 右标注 + 待研发确认），
+  然后在**系统默认浏览器**里打开它（macOS `open`、Linux `xdg-open`、Windows `cmd /c start`），
+  回包里也带那条绝对地址：能重开、能转发。
+  没命中就说没命中，**不生成空的三栏页**。和命令行 `material` 走的是同一份实现（`lib/material.js`）。
+- **插件自己不再有输入框**：需求只有一个来源——聊天框。
 - **覆盖率表**：由索引运行结果生成，不是 fixture 文件。
 
 ![代码源设置页](docs/screenshot-sources.png)
@@ -275,7 +277,7 @@ dsh plugin --profile <profile> add /绝对路径/dsh-repotruth
 宿主半边（`lib/index.js` 及其 import 的 `lib/*.js`）改了要等配置热重组或重启宿主。
 
 ```bash
-npm test                          # 57 个用例：署名、正文禁词、demo 端到端、增量契约、超时、问一句、走查材料、命名一致性
+npm test                          # 64 个用例：署名、正文禁词、demo 端到端、增量契约、超时、走查材料、界面表面、命名一致性
 node --check lib/client.js        # 浏览器半边语法
 node bin/dsh-plugin-repotruth.js --help
 node scripts/mutation-check.mjs    # 变异验证：每条规则「改坏就变红」，22/22
@@ -297,6 +299,7 @@ node scripts/mutation-check.mjs    # 变异验证：每条规则「改坏就变�
 | `lib/answer.js` | 问一句的渲染：正文 + 限界框 + 研发参考 + 署名 |
 | `lib/demo.js` | 浅克隆 → 扫描 → 渲染 → 写盘 → 删临时目录 |
 | `lib/material.js` | **需求走查**：命中 → 归节点 → 页面结构卡 / 时序骨架 / 标注 → 填三栏模板 → 写盘或给宿主 |
+| `lib/open-external.js` | 用系统默认浏览器打开材料：三平台命令 + 只放行本机 http(s) |
 | `lib/flow-svg.js` | 左栏流程 SVG（对齐 flowspec/1 的 `data-node` / `#sel-ring` 契约） |
 | `lib/seq-svg.js` | 没有页面的节点的时序图；**参与者是封闭词表**，词表外直接抛错 |
 | `lib/svg-text.js` | 排版用的字宽估算（确定性断行，不靠浏览器量） |
@@ -355,7 +358,7 @@ materials/<id>.html   「需求走查」的三栏材料（只留最近 40 份；
 | POST | `/api/repo-truth/ask` | 问一句；返回正文、限界框、候选、材料 URL |
 | GET | `/api/repo-truth/answers/<id>.html` | 打开那份材料 |
 | POST | `/api/repo-truth/materials` | 需求走查：`{repo, question}` → 三栏材料；没命中返回 `found:false` 与正文，**不给 URL** |
-| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（面板内嵌与新窗口是同一个地址） |
+| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（默认浏览器打开的就是这条地址） |
 | GET | `/api/repo-truth/coverage` | 覆盖率表（只读） |
 
 ## 安全说明
