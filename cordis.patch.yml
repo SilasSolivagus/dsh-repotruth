@@ -3,5 +3,5 @@
 # 不需要（也不能）为它单独写一行。
 - insert:
     - id: repo-truth
-      name: dsh-plugin-repo-truth
+      name: dsh-plugin-repotruth
       inject: [webServer]

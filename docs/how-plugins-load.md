@@ -30,13 +30,13 @@
 
 # 2) profile 声明依赖（等价于 pnpm 的 link: 依赖）
 #    文件：~/.dsh/profiles/desktop/package.json
-#    "dependencies": { "dsh-plugin-repo-truth": "link:/Users/silas/repo-truth-plugin" }
+#    "dependencies": { "dsh-plugin-repotruth": "link:/Users/silas/repo-truth-plugin" }
 
 # 3) 让解析真的通：profile 自己的 node_modules 里放软链
-ln -sfn /Users/silas/repo-truth-plugin ~/.dsh/profiles/desktop/node_modules/dsh-plugin-repo-truth
+ln -sfn /Users/silas/repo-truth-plugin ~/.dsh/profiles/desktop/node_modules/dsh-plugin-repotruth
 
 # 4) 选进 bundle 列表（顺序即配置优先级）
-#    文件同上，"dsh": { "profile": { "bundles": [ ..., "dsh-plugin-repo-truth" ] } }
+#    文件同上，"dsh": { "profile": { "bundles": [ ..., "dsh-plugin-repotruth" ] } }
 ```
 
 第 3 步不能省。profile 的 `package.json` 只是声明，Node 解析走的是 profile 目录下的 `node_modules`；
@@ -89,7 +89,7 @@ mtime/size 变了就通过 SSE（`/plugins/events`）通知页面，页面重放
 
 ```json
 {
-  "name": "dsh-plugin-repo-truth",
+  "name": "dsh-plugin-repotruth",
   "version": "0.1.0",
   "type": "module",
   "main": "./lib/index.js",
@@ -124,7 +124,7 @@ mtime/size 变了就通过 SSE（`/plugins/events`）通知页面，页面重放
 ```yaml
 - insert:
     - id: repo-truth
-      name: dsh-plugin-repo-truth
+      name: dsh-plugin-repotruth
       inject: [webServer]
 ```
 
@@ -220,18 +220,18 @@ cp package.json      package.json.bak-repo-truth-20261109-144334
 cp cordis.patch.yml  cordis.patch.yml.bak-repo-truth-20261109-144334
 
 node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));
-p.dependencies['dsh-plugin-repo-truth']='link:/Users/silas/repo-truth-plugin';
-p.dsh.profile.bundles.push('dsh-plugin-repo-truth');
+p.dependencies['dsh-plugin-repotruth']='link:/Users/silas/repo-truth-plugin';
+p.dsh.profile.bundles.push('dsh-plugin-repotruth');
 fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
-ln -sfn /Users/silas/repo-truth-plugin node_modules/dsh-plugin-repo-truth
+ln -sfn /Users/silas/repo-truth-plugin node_modules/dsh-plugin-repotruth
 ```
 
 6 秒后：
 
 ```bash
 curl -s http://127.0.0.1:60425/api/repo-truth/health
-# {"ok":true,"plugin":"dsh-plugin-repo-truth",
+# {"ok":true,"plugin":"dsh-plugin-repotruth",
 #  "dataDir":"/Users/silas/Library/Application Support/repo-truth", ...}
 ```
 
@@ -247,8 +247,8 @@ line=[l for l in raw.splitlines() if l.startswith('data: ')][0][6:]
 g=json.loads(line)['graph']
 print([(e['id'],e['rev']) for e in g['entries'] if 'repo-truth' in e['id']])
 print([[e for e in b['entries'] if 'repo-truth' in e] for b in g['batches']])"
-# [('dsh-plugin-repo-truth', '07e9413dd14e')]
-# [[], [], ['dsh-plugin-repo-truth']]        ← 在“应用批次”里，随启动加载
+# [('dsh-plugin-repotruth', '07e9413dd14e')]
+# [[], [], ['dsh-plugin-repotruth']]        ← 在“应用批次”里，随启动加载
 ```
 
 改一行 `lib/client.js` 再看，`rev` 变成 `d3ec92a3675a`，并且**已经打开的页面文字跟着变了**（不刷新）。
@@ -287,7 +287,7 @@ print([[e for e in b['entries'] if 'repo-truth' in e] for b in g['batches']])"
 cd ~/.dsh/profiles/desktop
 cp package.json.bak-repo-truth-20261109-144334      package.json
 cp cordis.patch.yml.bak-repo-truth-20261109-144334  cordis.patch.yml
-rm node_modules/dsh-plugin-repo-truth
+rm node_modules/dsh-plugin-repotruth
 ```
 
 `cordis.patch.yml` 这次**没动**（我们走的是 bundle patch，不是手写行）；备份留着是为了万一。
@@ -301,11 +301,11 @@ mkdir -p "$P/node_modules"
 cp ~/.dsh/profiles/web/{cordis.yml,cordis.patch.yml,pnpm-workspace.yaml} "$P/"
 cat > "$P/package.json" <<'JSON'
 { "name": "dsh-profile-repo-truth-gui", "private": true,
-  "dependencies": { "dsh-plugin-repo-truth": "link:/Users/silas/repo-truth-plugin" },
+  "dependencies": { "dsh-plugin-repotruth": "link:/Users/silas/repo-truth-plugin" },
   "dsh": { "profile": { "bundles": [
-    "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-plugin-repo-truth" ] } } }
+    "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-plugin-repotruth" ] } } }
 JSON
-ln -sfn /Users/silas/repo-truth-plugin "$P/node_modules/dsh-plugin-repo-truth"
+ln -sfn /Users/silas/repo-truth-plugin "$P/node_modules/dsh-plugin-repotruth"
 
 node "/Applications/DeepSeek Harness.app/Contents/Resources/app/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js" \
   --profile repo-truth-gui --no-open --port 60555

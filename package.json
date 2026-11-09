@@ -1,7 +1,7 @@
 {
-  "name": "dsh-plugin-repo-truth",
-  "version": "0.2.0",
-  "description": "把公司代码仓库整理成产品经理能读懂的「系统现状」：先登记代码源、再给出一张覆盖率表。",
+  "name": "dsh-plugin-repotruth",
+  "version": "0.3.0",
+  "description": "把代码仓库整理成产品经理能读懂的「系统现状」：接入仓库 → 内容寻址索引 → 问一句出材料 → 覆盖率表。",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
@@ -18,7 +18,14 @@
     "lib/scan.js",
     "lib/render.js",
     "lib/demo.js",
-    "bin/dsh-plugin-repo-truth.js",
+    "lib/git.js",
+    "lib/indexer.js",
+    "lib/worker.js",
+    "lib/jobs.js",
+    "lib/repos.js",
+    "lib/ask.js",
+    "lib/answer.js",
+    "bin/dsh-plugin-repotruth.js",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -27,10 +34,10 @@
     "dsh-plugin",
     "dsh-bundle",
     "code-index",
+    "content-addressed",
     "product-management",
     "pm",
-    "repo-summary",
-    "static-site"
+    "repo-summary"
   ],
   "engines": {
     "node": ">=22"
@@ -51,15 +58,18 @@
     }
   },
   "bin": {
-    "dsh-plugin-repo-truth": "./bin/dsh-plugin-repo-truth.js"
+    "dsh-plugin-repotruth": "./bin/dsh-plugin-repotruth.js"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "demo": "node ./bin/dsh-plugin-repo-truth.js demo"
+    "demo": "node ./bin/dsh-plugin-repotruth.js demo"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/repo-truth/repo-truth-plugin.git"
+    "url": "git+https://github.com/SilasSolivagus/dsh-repotruth.git"
   },
-  "homepage": "https://github.com/repo-truth/repo-truth-plugin"
+  "homepage": "https://github.com/SilasSolivagus/dsh-repotruth",
+  "bugs": {
+    "url": "https://github.com/SilasSolivagus/dsh-repotruth/issues"
+  }
 }

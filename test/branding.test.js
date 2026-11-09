@@ -40,9 +40,14 @@ function sampleFacts() {
 
 test('默认带页脚：页脚一行包含项目地址与版本', () => {
   const html = renderHtml(sampleFacts(), { config: {}, generatedAt: '2026-01-01' })
-  assert.match(html, /<footer>由 repo-truth 生成 · /)
+  assert.match(html, /<footer>由 repotruth 生成 · /)
   assert.ok(html.includes(`v${pkg.version}`), '页脚里应有版本号')
   assert.ok(html.includes(repoUrl()), '页脚里应有项目地址')
+  // 钉死真地址：署名是传播面，地址被改成占位符就等于署名失效。
+  assert.ok(
+    html.includes('https://github.com/SilasSolivagus/dsh-repotruth'),
+    '页脚必须带真实仓库地址，不能是占位符',
+  )
 })
 
 test('缺省配置（undefined）也带页脚：默认值不能依赖调用方记得传', () => {
@@ -53,14 +58,14 @@ test('缺省配置（undefined）也带页脚：默认值不能依赖调用方�
 test('attribution:false 时页脚消失，但 meta 标签保留', () => {
   const html = renderHtml(sampleFacts(), { config: { attribution: false }, generatedAt: '2026-01-01' })
   assert.ok(!html.includes('<footer>'), '关掉署名后不应有页脚')
-  assert.ok(!html.includes('由 repo-truth 生成'), '关掉署名后不应出现署名句')
-  assert.ok(html.includes(`<meta name="generator" content="repo-truth v${pkg.version}">`), 'meta 是元数据，必须保留')
+  assert.ok(!html.includes('由 repotruth 生成'), '关掉署名后不应出现署名句')
+  assert.ok(html.includes(`<meta name="generator" content="repotruth v${pkg.version}">`), 'meta 是元数据，必须保留')
 })
 
 test('meta 标签在两种情况下都存在，且内容来自 package.json', () => {
   const on = renderHtml(sampleFacts(), { config: { attribution: true }, generatedAt: '2026-01-01' })
   const off = renderHtml(sampleFacts(), { config: { attribution: false }, generatedAt: '2026-01-01' })
-  const expected = `<meta name="generator" content="repo-truth v${pkg.version}">`
+  const expected = `<meta name="generator" content="repotruth v${pkg.version}">`
   assert.ok(on.includes(expected))
   assert.ok(off.includes(expected))
   assert.ok(on.indexOf(expected) < on.indexOf('<body>'), 'meta 必须在 head 里')
@@ -91,8 +96,8 @@ test('地址归一：git+https 与 git@ 都变成可点的 https', () => {
   assert.equal(repoUrl('git@github.com:a/b.git'), 'https://github.com/a/b')
   assert.equal(repoUrl(''), repoUrl())
   assert.ok(repoUrl().length > 0)
-  assert.match(footerLine({ version: '9.9.9', repoUrl: 'https://example.com/x' }), /由 repo-truth 生成 · https:\/\/example\.com\/x · v9\.9\.9$/)
-  assert.match(metaTag('9.9.9'), /content="repo-truth v9\.9\.9"/)
+  assert.match(footerLine({ version: '9.9.9', repoUrl: 'https://example.com/x' }), /由 repotruth 生成 · https:\/\/example\.com\/x · v9\.9\.9$/)
+  assert.match(metaTag('9.9.9'), /content="repotruth v9\.9\.9"/)
   assert.ok(FALLBACK_REPO_URL.startsWith('https://'))
 })
 

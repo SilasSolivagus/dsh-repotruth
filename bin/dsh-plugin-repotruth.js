@@ -2,7 +2,7 @@
 // 命令行入口。
 //
 // 为什么要有 bin：材料要在公司群里流通，得有人能在没装 GUI 的机器上一条命令跑出来。
-// npx dsh-plugin-repo-truth demo <公开仓地址> 就是这个入口。
+// npx dsh-plugin-repotruth demo <公开仓地址> 就是这个入口。
 // 这里不做参数框架、不引依赖：两个开关的事，手写解析最省事也最不容易被包管理器版本绊倒。
 import { runDemo } from '../lib/demo.js'
 import { PRODUCT, version } from '../lib/branding.js'

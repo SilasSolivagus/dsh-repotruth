@@ -12,7 +12,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { looksLikeGitUrl, repoSlug, runDemo } from '../lib/demo.js'
-import { parseArgs } from '../bin/dsh-plugin-repo-truth.js'
+import { parseArgs } from '../bin/dsh-plugin-repotruth.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
@@ -88,8 +88,8 @@ test('demo 跑通本地仓：输出页有正文、限界、meta 与页脚', asyn
   assert.match(result.outPath, /fixture-app-status\.html$/, '文件名来自仓库名')
 
   const html = await readFile(result.outPath, 'utf8')
-  assert.ok(html.includes(`<meta name="generator" content="repo-truth v${pkg.version}">`))
-  assert.ok(html.includes('<footer>由 repo-truth 生成 · '), '默认带页脚')
+  assert.ok(html.includes(`<meta name="generator" content="repotruth v${pkg.version}">`))
+  assert.ok(html.includes('<footer>由 repotruth 生成 · '), '默认带页脚')
   assert.ok(html.includes('这份材料读到哪、没读到哪'), '页面上必须写清自己的限界')
   assert.ok(html.includes('native/Widget.swift') || html.includes('Swift'), '读不懂的语言要报出来')
   assert.ok(result.facts.pages.items.includes('/dashboard'), 'app/**/page.* 要认出页面')
@@ -108,32 +108,32 @@ test('attribution:false：页脚消失，meta 保留', async (t) => {
   const off = await runDemo({ url: `file://${fixture}`, out: outDir, quiet: true, attribution: false, generatedAt: '2026-01-01' })
   const html = await readFile(off.outPath, 'utf8')
   assert.ok(!html.includes('<footer>'))
-  assert.ok(!html.includes('由 repo-truth 生成'))
-  assert.ok(html.includes(`<meta name="generator" content="repo-truth v${pkg.version}">`))
+  assert.ok(!html.includes('由 repotruth 生成'))
+  assert.ok(html.includes(`<meta name="generator" content="repotruth v${pkg.version}">`))
 })
 
 test('克隆到临时目录并在结束后删掉（不在用户目录留垃圾）', async (t) => {
   const fixture = await makeFixtureRepo()
-  const before = execFileSync('sh', ['-c', 'ls -d "$TMPDIR"repo-truth-demo-* 2>/dev/null | wc -l'], { encoding: 'utf8' }).trim()
   t.after(async () => {
     await rm(fixture, { recursive: true, force: true })
   })
   const outDir = await mkdtemp(join(tmpdir(), 'repo-truth-out-'))
   t.after(async () => rm(outDir, { recursive: true, force: true }))
 
-  await runDemo({ url: `file://${fixture}`, out: outDir, quiet: true, generatedAt: '2026-01-01' })
-  const after = execFileSync('sh', ['-c', 'ls -d "$TMPDIR"repo-truth-demo-* 2>/dev/null | wc -l'], { encoding: 'utf8' }).trim()
-  assert.equal(after, before, '临时目录必须清干净')
+  const result = await runDemo({ url: `file://${fixture}`, out: outDir, quiet: true, generatedAt: '2026-01-01' })
+  // 断言「那一个目录」没了，而不是数目录个数：并行跑测试时数字会被别的用例干扰。
+  assert.ok(result.tempRoot.length > 0)
+  assert.equal(existsSync(result.tempRoot), false, '临时目录必须清干净')
 })
 
 test('CLI 真跑一遍：打印输出路径', () => {
-  // 这条走真正的 bin，证明 npx dsh-plugin-repo-truth demo … 那条路是通的。
+  // 这条走真正的 bin，证明 npx dsh-plugin-repotruth demo … 那条路是通的。
   const fixture = execFileSync('sh', ['-c', 'mktemp -d'], { encoding: 'utf8' }).trim()
   execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: fixture })
   execFileSync('sh', ['-c', 'echo "# hi" > README.md && mkdir -p app/x && echo "export default 1" > app/x/page.ts'], { cwd: fixture })
   execFileSync('git', ['-c', 'user.name=f', '-c', 'user.email=f@e.com', 'add', '-A'], { cwd: fixture })
   execFileSync('git', ['-c', 'user.name=f', '-c', 'user.email=f@e.com', 'commit', '--quiet', '-m', 'init'], { cwd: fixture })
-  const out = execFileSync('node', [join(root, 'bin/dsh-plugin-repo-truth.js'), 'demo', `file://${fixture}`, '--quiet', '--out', join(fixture, 'out')], { encoding: 'utf8' })
+  const out = execFileSync('node', [join(root, 'bin/dsh-plugin-repotruth.js'), 'demo', `file://${fixture}`, '--quiet', '--out', join(fixture, 'out')], { encoding: 'utf8' })
   const printed = out.trim().split('\n').pop()
   assert.match(printed, /-status\.html$/)
   assert.ok(existsSync(printed), `打印出来的路径必须存在：${printed}`)
