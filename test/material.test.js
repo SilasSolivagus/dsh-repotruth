@@ -4,7 +4,7 @@
 // 1. 没命中就不画流程——一张空的三栏页会让人以为「这件事就是这样」；
 // 2. 没有页面的节点必须给时序图，且参与者只能从封闭词表里取（图上不许出现方法名）；
 // 3. 节点必须带 data-node、页面与标注容器必须能被 JS 切换（联动断了，这页就退化成静态图）；
-// 4. 材料自己说清读到哪：生成器 meta、署名、限界框、末尾研发参考，一个都不能少；
+// 4. 材料只剩两样自我说明：<head> 的生成器 meta 与页底一行署名（限界框、研发参考已删）；
 // 5. 产品语言里不许混进路径/后缀/驼峰标识符（机器检查，不靠感觉）。
 import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -159,9 +159,8 @@ test('时序参与者是封闭词表：词表外的名字直接抛错，产物�
   assert.ok(names.length >= 2)
   for (const name of names) assert.ok(SEQ_PARTICIPANTS.includes(name), `参与者 ${name} 不在词表内`)
   assert.equal(names.includes('支付渠道'), true, '名字里出现支付词时才该画出这一列')
-  // 图上不许出现方法名：符号名只允许出现在末尾研发参考里
-  const beforeDevRef = rendered.html.split('<details class="rt-devref"')[0]
-  assert.equal(/payByCard|createCheckout|payWithChannel/.test(beforeDevRef), false)
+  // 图上不许出现方法名：符号名一个都不许出现（研发参考已删，没有出口）
+  assert.equal(/payByCard|createCheckout|payWithChannel/.test(rendered.html), false, '方法名不许出现在产物里')
 })
 
 test('三栏是能点的：节点带 data-node，页面与标注容器由同一段 JS 切换', async () => {
@@ -195,14 +194,16 @@ test('深链 #node= 与 #node=…&state= 都在产物里（headless 截图靠它
   assert.ok(html.includes('setViewByNode(NODES[initNode] ? initNode : "page-checkout")'))
 })
 
-test('署名与生成器 meta：页脚可关、meta 永远在，材料自带限界与研发参考', async () => {
+test('署名与生成器 meta：页脚可关、meta 永远在，页面上只有这一行署名', async () => {
   const { rendered } = await build('结算与支付页是怎么做的？')
   assert.equal(/<meta name="generator" content="repotruth v[^"]+">/.test(rendered.html), true)
   assert.ok(rendered.html.includes('<footer>由 repotruth 生成'))
-  assert.ok(rendered.html.includes('这份材料读到哪、没读到哪'))
-  assert.ok(rendered.html.includes('没找到 ≠ 不存在'))
-  assert.ok(rendered.html.includes('研发参考'))
-  assert.ok(rendered.html.includes('fixture-shop:src/views/checkout/index.vue'))
+  // 署名是唯一的「关于这份材料」的可见文字：限界框与研发参考都不再渲染。
+  for (const gone of ['这份材料读到哪、没读到哪', '没找到 ≠ 不存在', '研发参考', 'fixture-shop:src/views/checkout/index.vue']) {
+    assert.equal(rendered.html.includes(gone), false, `${gone} 应该已经删掉`)
+  }
+  // 页脚在最后：三栏之后，页面最底部。
+  assert.ok(rendered.html.indexOf('<footer>') > rendered.html.indexOf('class="layout"'))
 
   await withHome(async () => {
     const index = await readRepoIndex('fixture-shop')
