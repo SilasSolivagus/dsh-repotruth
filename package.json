@@ -1,0 +1,65 @@
+{
+  "name": "dsh-plugin-repo-truth",
+  "version": "0.2.0",
+  "description": "把公司代码仓库整理成产品经理能读懂的「系统现状」：先登记代码源、再给出一张覆盖率表。",
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/paths.js",
+    "lib/branding.js",
+    "lib/scan.js",
+    "lib/render.js",
+    "lib/demo.js",
+    "bin/dsh-plugin-repo-truth.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "dsh-bundle",
+    "code-index",
+    "product-management",
+    "pm",
+    "repo-summary",
+    "static-site"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "bin": {
+    "dsh-plugin-repo-truth": "./bin/dsh-plugin-repo-truth.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "demo": "node ./bin/dsh-plugin-repo-truth.js demo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/repo-truth/repo-truth-plugin.git"
+  },
+  "homepage": "https://github.com/repo-truth/repo-truth-plugin"
+}

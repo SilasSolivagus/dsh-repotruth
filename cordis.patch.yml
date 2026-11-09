@@ -1,0 +1,7 @@
+# 本插件的 bundle patch：profile 启动时把这一行插进插件树。
+# 只有一个宿主行——浏览器半边由 package.json 的 dsh.client 自动挂到同一个 id 上，
+# 不需要（也不能）为它单独写一行。
+- insert:
+    - id: repo-truth
+      name: dsh-plugin-repo-truth
+      inject: [webServer]

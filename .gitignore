@@ -1,0 +1,14 @@
+# 依赖与构建产物：本插件零构建依赖，出现这些目录说明环境被污染了
+node_modules/
+*.log
+
+# 本地数据：配置里有令牌，覆盖率是本机测量结果，都不入库
+config.json
+coverage.json
+data/
+*.tmp
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
