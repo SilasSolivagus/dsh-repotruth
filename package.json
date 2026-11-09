@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-repotruth",
   "version": "0.3.0",
-  "description": "把代码仓库整理成产品经理能读懂的「系统现状」：接入仓库 → 内容寻址索引 → 问一句出材料 → 覆盖率表。",
+  "description": "把代码仓库整理成产品经理能读懂的「系统现状」与「需求走查」：接入仓库 → 内容寻址索引 → 三栏走查材料 → 覆盖率表。",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
@@ -25,10 +25,17 @@
     "lib/repos.js",
     "lib/ask.js",
     "lib/answer.js",
+    "lib/material.js",
+    "lib/flow-svg.js",
+    "lib/seq-svg.js",
+    "lib/svg-text.js",
+    "lib/vendor/uemaster/flow-walkthrough.html",
+    "lib/vendor/uemaster/LICENSE",
     "bin/dsh-plugin-repotruth.js",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "keywords": [
     "dsh-plugin",
@@ -53,6 +60,7 @@
       "platform": "web",
       "inject": [
         "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-locale"
       ]
     }

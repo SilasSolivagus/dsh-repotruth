@@ -1,54 +1,59 @@
 # repotruth
 
-**评审会上有人问「这个功能现在是怎么实现的」，然后全屋人开始等研发翻代码。**
+**评审会上有人问「这个需求现在是怎么实现的」，然后全屋人开始等研发翻代码。**
 
-repotruth 把代码仓库变成一句句**能被代码核实**的话：有哪些页面、每页由什么组成、改一处会波及几处、这段代码多久没人动过。
+repotruth 把代码仓库变成一句句**能被代码核实**的话。主产物是一张**三栏需求走查页**：左边是这件事落到哪几个节点上，中间是每个节点能看到的页面结构或时序骨架，右边是能从索引证明的事，以及**待研发确认**的槽位。
 
-*Turn code repositories into system status a product manager can read. Every sentence is traceable to code — and says so when it isn't.*
+*Turn code repositories into a walkthrough a product manager can click through. Every sentence is traceable to code — and says so when it isn't.*
 
-![一页系统现状](docs/images/demo.gif)
+![三栏需求走查：左流程节点、中页面结构或时序骨架、右标注](docs/images/walkthrough.png)
 
-```bash
-# 60 秒看任意公开仓（需要 node 22+ 和 git）
-npx dsh-plugin-repotruth demo https://github.com/PanJiaChen/vue-admin-template.git
-# ✓ 已写入：./vue-admin-template-status.html
+![没有页面的节点：中间换成时序骨架，右栏同步换成该节点的标注](docs/images/walkthrough-sequence.png)
+
+## 一条链路，三个动作（都在主界面上）
+
+```
+① 写一句需求「分享页要支持未登录下载但只有会员能下」
+        ↓ 点「生成走查材料」
+② 生成中：读本机索引，按名字找相关代码，归成节点
+        ↓
+③ 三栏走查页：点左侧节点 → 中间切换到该节点的页面结构 / 时序图 → 右侧换成该节点的标注
 ```
 
-打开它，看到的是这样一段话（**正文原文，一个字没改**）：
+材料是一个单文件 HTML：可以内嵌在面板里看，也可以「在新窗口打开」，还可以直接发到群里（不联网也能看）。
+地址后面加 `#node=<节点id>` 可以**直达某个节点**——演示录屏、截图复盘都靠它，不用点。
 
-> 这是一份自动生成的「系统现状」：只写能从代码里量出来的东西，不写设计意图，也不写应该做成什么样。当前能读懂的代码文件 **76 个**，合计约 **97 KB**。按语言分，JavaScript 38 个、Vue 25 个、CSS 6 个、JSON 2 个，其余 3 种语言合计 5 个。
->
-> 按目录约定能辨认出 **13 个**用户能到达的页面或视图。这份清单来自目录结构，不是从跳转声明里读出来的，**所以它偏向「少算」：真实页面可能比这个数字多**。
->
-> **读不懂**：(无扩展名) × 4、`.development` × 1。这些文件不计入上面的任何数字，也不参与任何判断——**它们既不算「读到了」，也不该被读成「不存在」。**
+```bash
+# 命令行同一条实现（适合放进脚本 / CI / 群里的消息）
+npx dsh-plugin-repotruth material vue-admin-template --question "用户登录页面是怎么做的？" --out ./examples
+```
 
-更多示例：[Vue 后台模板](examples/vue-admin-template-status.html) · [Next.js 订阅站（App Router）](examples/nextjs-subscription-payments-status.html)
+## 两份产物，别混着读
 
-**代码不出你的机器**：浅克隆到系统临时目录，量完即删；不装依赖、不执行仓库里的脚本、不把源码发给任何模型或服务。
+| | **系统现状**（`demo` / 设置 → 覆盖率） | **需求走查**（`material` / 主界面「需求走查」） |
+|---|---|---|
+| 回答什么 | 这个仓里有什么：多少页面、每页多大、改一处波及几处 | 这件事现在怎么走：落到哪几个节点、每个节点有什么、哪里要问研发 |
+| 输入 | 一个仓地址 | 一个仓 + 一句中文需求 |
+| 形态 | 单栏长文 + 限界框 + 折叠的研发参考 | 三栏可交互页（左节点 / 中页面或时序 / 右标注） |
+| 什么时候用 | 接手一个陌生存、做覆盖率盘点 | 需求评审、走查、估影响面 |
+| 共同点 | 都只读本机索引；都带限界框；都写「没找到 ≠ 不存在」 | 同左 |
 
-## 为什么做这个
+**现状页是「这个仓里有什么」的体检报告，走查页是「这件事怎么走下来的」的追踪。** 前者与问题无关，后者每个节点都能点开。
 
-产品经理判断一个需求值不值得做、有多大、会不会捅到别处，靠的是「现在到底是怎么实现的」。这个答案通常存在三个地方：**某个研发的脑子、一个三年前的群聊、或者一段没人读完的代码。**
+## 走查页里，什么能说、什么不能说
 
-让 agent 读代码很容易。难的是**让它别编**。绝大多数「AI 帮你分析代码」的工具，会用同样自信的语气说出这四句话：
+| 栏位 | 内容 | 依据 |
+|---|---|---|
+| 左：节点 | 命中的文件按「页面」和「目录区域」归并；一个页面一个节点，一片模块一个节点 | 索引里的页面约定 + 命中的路径 |
+| 中：页面节点 | 「这个页面由这些模块组成」的结构卡：页面位置、页面内组件、体积、被引用数、最近改动 | 索引里的页面归属、组件标签、相对引用、字节数、改动时间 |
+| 中：没有页面的节点 | **时序图**（参与者、编号消息），上方写明「时序骨架，不是从代码里读出来的流程」 | 参与者只从固定词表取：用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道 |
+| 右：标注 | 规模、被引用数、最近改动，以及一条 **「待研发确认（未证实）」** | 只写索引能证明的数字 |
+| 页尾 | 限界框 + 折叠的**研发参考**（每个数字的坐标）+ 署名 | 与现状页同一套纪律 |
 
-- 一个根本不存在的页面
-- 一个早已重构掉的接口
-- 把框架自动生成的代码，说成「产品已有的能力」
-- 把「我没找到」说成「不存在」
+两条硬规矩：
 
-repotruth 的全部设计，都在对抗这四件事。
-
-## 它回答什么，不回答什么
-
-| 能回答 | 不能回答 |
-| --- | --- |
-| 产品里有哪些页面，每页由哪些模块组成 | 为什么当初这么设计 |
-| 改一个模块会波及几处 | 线上真实发生了什么（要看日志 / 埋点） |
-| 这段代码多久没人动过 | 这段代码好不好 |
-| 你提的这件事，代码里有没有对应实现 | 该不该做这件事 |
-
-**它给的是证据，不是结论。** 判断仍然是人做的。
+1. **中间栏不画假截图。** 索引给不出原型，就只说结构；页面里的模块读不到，就写「读不到，只解析相对引用」。
+2. **没命中就不画流程。** 输入的东西在索引里找不到时，面板与命令行都只说「没能在已索引的代码里找到与「X」相关的地方」，**不生成空的三栏页**——一张空页会让人以为「这件事就是这样」。
 
 ## 三句话纪律
 
@@ -69,7 +74,8 @@ repotruth 的全部设计，都在对抗这四件事。
 | 1 接入 | 设置 → 仓库 → 接入仓库 | 把仓克隆成本机 bare 镜像；之后只 `fetch`，不重克隆 | `mirrors/<仓名>.git` |
 | 2 建索引 | 同一个按钮，进度自己走 | 列树 → 只解析没见过的内容块 → 写一份 JSON | `index/<仓名>.json` |
 | 3 问一句 | 设置 → 问一句 | 用一句中文问，只查本机索引回答 | `answers/<id>.html` + 面板里的正文 |
-| 4 覆盖率 | 设置 → 覆盖率 | 每个仓「接进来 / 看得见 / 看不见」的账 | `coverage.json` |
+| 4 需求走查 | 主界面 →「需求走查」页签 | 一句需求 → 归节点 → 页面结构 / 时序骨架 / 标注 | `materials/<id>.html`（单文件三栏页） |
+| 5 覆盖率 | 设置 → 覆盖率 | 每个仓「接进来 / 看得见 / 看不见」的账 | `coverage.json` |
 
 克隆与建索引都跑在**独立子进程**里，每个仓一套硬超时。宿主进程从头到尾不等它们——
 卡在 DNS、卡在凭据提示、卡在一个几十万文件的树里，界面照样能用，到点自动杀。
@@ -162,6 +168,9 @@ npx dsh-plugin-repotruth demo <仓地址> --no-attribution   # 本次不带页�
 - **同步**：首次 `git clone --mirror`，之后 `git fetch --prune`。进度靠面板轮询 `/jobs`（不开 websocket）。
 - **移除**：从登记表删掉，并删掉本机镜像与索引文件（只删我们自己的 `mirrors/`、`index/` 下的东西）。
 - **问一句**：只读本机索引出材料，正文产品语言 + 限界框 + 末尾折叠的研发参考 + 署名。
+- **需求走查**：主界面「需求走查」页签里写一句中文需求 → 生成三栏材料（左节点 / 中页面结构或时序骨架 / 右标注 + 待研发确认），
+  面板里内嵌同一份 HTML，也能「在新窗口打开」。没命中就说没命中，**不生成空的三栏页**。
+  和命令行 `material` 走的是同一份实现（`lib/material.js`），不存在两份产物两个口径。
 - **覆盖率表**：由索引运行结果生成，不是 fixture 文件。
 
 ![代码源设置页](docs/screenshot-sources.png)
@@ -266,10 +275,10 @@ dsh plugin --profile <profile> add /绝对路径/dsh-repotruth
 宿主半边（`lib/index.js` 及其 import 的 `lib/*.js`）改了要等配置热重组或重启宿主。
 
 ```bash
-npm test                          # 46 个用例：署名、正文禁词、demo 端到端、增量契约、超时、问一句、命名一致性
+npm test                          # 57 个用例：署名、正文禁词、demo 端到端、增量契约、超时、问一句、走查材料、命名一致性
 node --check lib/client.js        # 浏览器半边语法
 node bin/dsh-plugin-repotruth.js --help
-node scripts/mutation-check.mjs    # 变异验证：每条规则「改坏就变红」，15/15
+node scripts/mutation-check.mjs    # 变异验证：每条规则「改坏就变红」，22/22
 ```
 
 模块分工（改哪一处很清楚）：
@@ -287,7 +296,12 @@ node scripts/mutation-check.mjs    # 变异验证：每条规则「改坏就变�
 | `lib/ask.js` | 检索：词表、打分、阈值、命中与「没找到」 |
 | `lib/answer.js` | 问一句的渲染：正文 + 限界框 + 研发参考 + 署名 |
 | `lib/demo.js` | 浅克隆 → 扫描 → 渲染 → 写盘 → 删临时目录 |
-| `bin/dsh-plugin-repotruth.js` | `npx dsh-plugin-repotruth demo …` 的入口 |
+| `lib/material.js` | **需求走查**：命中 → 归节点 → 页面结构卡 / 时序骨架 / 标注 → 填三栏模板 → 写盘或给宿主 |
+| `lib/flow-svg.js` | 左栏流程 SVG（对齐 flowspec/1 的 `data-node` / `#sel-ring` 契约） |
+| `lib/seq-svg.js` | 没有页面的节点的时序图；**参与者是封闭词表**，词表外直接抛错 |
+| `lib/svg-text.js` | 排版用的字宽估算（确定性断行，不靠浏览器量） |
+| `lib/vendor/uemaster/` | vendor 的三栏壳 + 上游 MIT 许可全文（来源与改动见 `NOTICE`、`docs/vendor.md`） |
+| `bin/dsh-plugin-repotruth.js` | `npx dsh-plugin-repotruth demo …` / `material …` 的入口 |
 
 重新生成 `examples/`（公开仓，任选，跑完把 HTML 提交进去）：
 
@@ -307,6 +321,7 @@ coverage.json    覆盖率表（由索引运行结果生成，插件自己写）
 mirrors/<仓名>.git    bare 镜像；只 fetch，不重克隆
 index/<仓名>.json     内容寻址索引；删掉可重放
 answers/<id>.html     「问一句」的材料（自动只留最近 60 份）
+materials/<id>.html   「需求走查」的三栏材料（只留最近 40 份；删掉能重生成）
 ```
 
 `config.json`：
@@ -339,6 +354,8 @@ answers/<id>.html     「问一句」的材料（自动只留最近 60 份）
 | GET | `/api/repo-truth/jobs?id=&repo=` | 任务列表 / 单个任务（面板轮询这个） |
 | POST | `/api/repo-truth/ask` | 问一句；返回正文、限界框、候选、材料 URL |
 | GET | `/api/repo-truth/answers/<id>.html` | 打开那份材料 |
+| POST | `/api/repo-truth/materials` | 需求走查：`{repo, question}` → 三栏材料；没命中返回 `found:false` 与正文，**不给 URL** |
+| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（面板内嵌与新窗口是同一个地址） |
 | GET | `/api/repo-truth/coverage` | 覆盖率表（只读） |
 
 ## 安全说明
@@ -352,7 +369,11 @@ answers/<id>.html     「问一句」的材料（自动只留最近 60 份）
 
 ## 致谢
 
-材料的呈现层（规范流程图、三栏联动走查页、时序图）来自 **[roxorlt/UEmaster](https://github.com/roxorlt/UEmaster)**（MIT）—— 那是这个项目思路的起点：先让评审「看得见」，再让评审「看得懂」。感谢 [@roxorlt](https://github.com/roxorlt)。
+三栏联动走查页的**呈现层** vendor 自 **[roxorlt/UEmaster](https://github.com/roxorlt/UEmaster)**（MIT）的 `flow-walkthrough` 模板：
+`lib/vendor/uemaster/flow-walkthrough.html`，上游提交 `f6de00fc`，版权归 roxor，许可全文在 `lib/vendor/uemaster/LICENSE`。
+我们只取运行时模板（HTML/CSS/JS），没有复制它的说明文字、Python 布局器与示例原型；
+流程图与时序图的 SVG 用 JavaScript 重写，只对齐上游的输出契约。改动逐条写在 `NOTICE` 与 [`docs/vendor.md`](docs/vendor.md)。
+感谢 [@roxorlt](https://github.com/roxorlt)——先让评审「看得见」，再让评审「看得懂」。
 
 ## 许可证
 

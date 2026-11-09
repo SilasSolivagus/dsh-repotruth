@@ -1,0 +1,32 @@
+repotruth
+Copyright (c) 2026 repo-truth contributors
+Licensed under the MIT License (see LICENSE).
+
+────────────────────────────────────────────────────────────────────────────────
+本产品包含来自第三方（MIT 许可）的代码
+────────────────────────────────────────────────────────────────────────────────
+
+UEmaster — flow-walkthrough 模板
+  上游仓库： https://github.com/roxorlt/UEmaster
+  上游路径： skills/flow-walkthrough/templates/walkthrough.html
+  提交：     f6de00fc525715f891c0a9a896154a0ffbcdc17f（2026-09-24）
+  版权：     Copyright (c) 2026 roxor
+  许可：     MIT（全文见 lib/vendor/uemaster/LICENSE、上游 LICENSE）
+  本仓库位置：
+    lib/vendor/uemaster/flow-walkthrough.html   三栏联动壳（HTML/CSS/JS）
+    lib/vendor/uemaster/LICENSE                 上游 MIT 许可全文
+
+  修改（除此之外与上游逐字节一致，改动点写在文件头部注释里）：
+    1. 增加 __HEAD_EXTRA__ / __INTRO__ / __FOOT__ / __FLOW_TITLE__ 四个模板槽位，
+       用于注入生成器 meta、产品语言正文、限界框 + 研发参考 + 署名、左栏短标题；
+    2. 深链扩展为 #node=<节点id> 与 #node=<节点id>&state=<组>/<状态>；
+    3. 右侧「使用说明」的第三块换成本产品的边界说明。
+
+  未随附：上游的 SKILL.md、references、contract、examples、build.py 与其 Python
+  布局器。原因：这些是给模型读的说明与构建流程，本插件只取运行时需要的模板，
+  且不加构建步骤、不加运行时依赖。流程图与时序图的 SVG 由本仓库用 JavaScript
+  重写（lib/flow-svg.js、lib/seq-svg.js），只对齐上游的输出契约
+  （data-flowspec="1" / g[data-node] / #sel-ring；data-seqspec="1"），
+  没有复制布局器代码。
+
+详见 docs/vendor.md。

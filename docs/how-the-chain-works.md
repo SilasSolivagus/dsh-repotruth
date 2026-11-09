@@ -28,7 +28,8 @@
 ├── coverage.json      覆盖率表（由索引运行结果投影出来）
 ├── mirrors/<仓名>.git  bare 镜像：首次 clone --mirror，之后只 fetch --prune
 ├── index/<仓名>.json  内容寻址索引（可删，删了能重放）
-└── answers/<id>.html  「问一句」的材料（只留最近 60 份）
+├── answers/<id>.html  「问一句」的材料（只留最近 60 份）
+└── materials/<id>.html 「需求走查」的三栏材料（只留最近 40 份）
 ```
 
 `safeName()` 把仓名白名单化（`../../etc/passwd` → `etc-passwd`），因为仓名来自用户输入或远端地址，
@@ -89,6 +90,8 @@
 | GET | `/api/repo-truth/jobs?id=&repo=` | 任务列表 / 单任务（进度轮询） | 仓库页（1.2s 一次，只在有任务时） |
 | POST | `/api/repo-truth/ask` | 问一句；返回正文段落、限界框、候选、材料 URL | 问一句页 |
 | GET | `/api/repo-truth/answers/<id>.html` | 打开完整材料（含折叠的研发参考） | 面板里的链接 |
+| POST | `/api/repo-truth/materials` | 需求走查：一句需求 → 三栏材料；没命中返回 `found:false` 且不给 URL | 主界面「需求走查」页签 |
+| GET | `/api/repo-truth/materials/<id>.html` | 打开走查材料（内嵌与新窗口同一地址） | 页签里的 iframe / 新窗口 |
 | GET | `/api/repo-truth/coverage` | 覆盖率表（真数据） | 覆盖率页 |
 
 写盘只有一处：**索引文件由子进程写，登记表与覆盖率只由宿主写**。
@@ -252,8 +255,8 @@ grpc-go ·            其中：测试 453 · 第三方 162 · 素材 0 · 认不
 ### 7.6 测试与变异验证
 
 ```
-npm test → 46 个用例全绿
-node scripts/mutation-check.mjs → 拦得住 15/15
+npm test → 57 个用例全绿
+node scripts/mutation-check.mjs → 拦得住 22/22
 ```
 
 | 编号 | 规则 | 改坏哪里 | 结果 |
@@ -273,9 +276,16 @@ node scripts/mutation-check.mjs → 拦得住 15/15
 | M13 | 令牌只以掩码出现 | `maskToken` 返回明文 | 变红 ✓ |
 | M14 | 配置文件 600 | chmod 改 644 | 变红 ✓ |
 | M15 | 署名地址必须是真地址 | package.json 换成占位符 | 变红 ✓ |
+| M16 | 没命中就不画流程 | `material.js` 关掉「没节点」分支 | 变红 ✓ |
+| M17 | 没有页面的节点必须给时序图 | `material.js` 把时序 SVG 置空 | 变红 ✓ |
+| M18 | 时序参与者是封闭词表 | `seq-svg.js` 关掉词表校验 | 变红 ✓ |
+| M19 | 走查页必须带生成器 meta | `branding.js` 让 metaTag 返回空 | 变红 ✓ |
+| M20 | 走查正文只能是产品语言 | 往正文塞一个 `src/views` | 变红 ✓ |
+| M21 | 深链 `#node=` 必须能停住 | 模板里 `hashQuery.node` 置空 | 变红 ✓ |
+| M22 | 走查页必须带署名页脚 | `footerHtml` 恒返回空 | 变红 ✓ |
 
 第一次跑只拦住 13/15：M9（检索阈值）和 M15（署名地址）当时**没有测试拦得住**。
-补了两条测试（弱命中不出结果；钉死真地址）之后才 15/15。这就是为什么这个脚本必须存在。
+补了两条测试（弱命中不出结果；钉死真地址）之后才 15/15。这次加了 7 条（M16–M22：没命中不画、无页面必出时序、参与者词表、生成器 meta、正文禁词、`#node=` 深链、署名页脚），现在 22/22。这就是为什么这个脚本必须存在。
 
 ### 7.7 命名（终版）
 
@@ -299,7 +309,95 @@ bundle 行 id 保持原样是刻意的：改了它，已有 profile 会多出一
 
 ---
 
-## 8. 还没做、但下一步该做的
+## 8. 需求走查材料（三栏页）
+
+```
+一句中文需求 + 一个已索引的仓
+  → 检索（ask.js，与「问一句」同一份实现）
+  → 归节点（页面一个节点 / 目录区域一个节点）
+  → 中间栏：有页面给结构卡，没页面给时序骨架
+  → 右栏：能证明的数字 + 待研发确认
+  → 填 UEmaster 的三栏模板（lib/vendor/uemaster/flow-walkthrough.html）
+  → 单文件 HTML
+```
+
+### 节点是怎么归的（规则固定、可复算）
+
+| 情况 | 归法 | 例子（vue-admin-template） |
+|---|---|---|
+| 命中的文件带页面归属 | 一个页面一个节点 | `src/views/login/index.vue` → 节点 `page-login` |
+| 命中的文件没有页面 | 按目录归并：`src/x/**` 取 `src/x`，其余取第一段 | `src/api/user.js` → 节点 `area-src-api` |
+
+顺序 = 页面在前、区域在后，各自按分数降序。**这个顺序不是跳转关系**，所以：
+
+- 代码里真有引用（A 的文件 import 了 B 的文件）→ 实线 + 箭头 + 标签「引用 / 被引用」；
+- 没有引用 → 虚线 + 标签「同批候选」，图例与限界框都写「顺序是我们排的」。
+
+### 中间栏：不画假原型
+
+| 节点类型 | 中间栏放什么 | 依据 |
+|---|---|---|
+| 页面 | 「这个页面由这些模块组成」结构卡：页面位置、页面内组件（Vue 模板里的大写标签）、相对引用、体积、被引用数、最近改动 | 索引里的 `pages` / `outline` / `imports` / `sizes` |
+| 没有页面 | 时序图（参与者 + 编号消息），图上方写明**「不是从代码里读出来的流程」** | 见下 |
+
+页面里读不到模块时（别名引用 `@/`、跨包引用），结构卡写「读不到，本版只解析相对引用」，**不补一个看起来像的模块**。
+
+### 时序图的参与者是封闭词表
+
+```
+用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道
+```
+
+- 词表外的名字（`数据库`、`getUserById`）直接**抛错**，不降级：图上一旦出现方法名，评审就会开始读代码，而这张图读的不是代码。
+- 「支付渠道 / 第三方 / 通知渠道」只有名字里出现对应词才出现（`pay|payment|billing|checkout|refund` 等），
+  属于「名字相关」而不是「调用关系」——所以图上方永远带那句骨架声明。
+- `lib/seq-svg.js` 输出 `data-seqspec="1"`，每条消息是 `g.message` + 编号标签；布局确定性（同一输入同一 viewBox）。
+
+### 深链（没有鼠标也能演示）
+
+```
+walkthrough.html#node=area-src-api             ← 停在这个节点
+walkthrough.html#node=page-login               ← 停在页面节点
+walkthrough.html#node=<id>&state=<组>/<状态>    ← 有状态组时，停在该状态的代表节点
+```
+
+`#node=` 是上游模板就有的能力；`state=` 是本仓库加的（改动见 `docs/vendor.md`）。
+加它是因为演示 GIF 用 headless Chrome 截图，不会点击——只能靠 URL 分别停在各个节点上，再把几帧拼成「点过去」的过程。
+
+### 没命中就不画
+
+`found:false` 时两份产物都不含流程：
+
+- 命令行写一份**说明页**（同一句话 + 限界框 + 研发参考），不写三栏结构；
+- 宿主 `POST /api/repo-truth/materials` 返回 `found:false`、`url:null` + 正文，面板只显示这句话，不打开 iframe。
+
+理由很直接：一张空的三栏页会让人以为「这件事就是这样」，而实际上是「查过、没命中」。
+
+### 两个入口，一份实现
+
+| 入口 | 位置 | 走的是 |
+|---|---|---|
+| 主界面「需求走查」页签 | 对话视图的一个 View（**不在设置里**） | `POST /api/repo-truth/materials` → `lib/material.js` |
+| 命令行 `material` | `npx dsh-plugin-repotruth material <仓名> --question "…"` | `lib/material.js` 的 `runMaterial` |
+
+两条入口都调 `askQuestion`，所以「问一句」与「走查」不会给出两批候选。
+
+### 实测（本机，vue-admin-template @ 4c18a3f4，68 个可读文件）
+
+```
+material vue-admin-template --question "用户登录页面是怎么做的？"
+  → 节点 5 个：页面 1（login）+ 没有页面的 4（src/api、mock、src/store、src/utils）
+  → 产物 46 KB 单文件 HTML（含内联 SVG、CSS、JS）
+material vue-admin-template --question "优惠券核销与发票开具"
+  → 没命中：只写说明页，不含 .layout / data-node / data-flowspec / data-seqspec
+```
+
+`npm test` 里有 11 条用例守这份材料：没命中不画、无页面必出时序、参与者词表封闭、
+`data-node` 与 `anno-body` 的联动、深链、署名与 meta、正文禁词、宿主两条路由。
+
+---
+
+## 9. 还没做、但下一步该做的
 
 1. **问一句的召回**：现在只认「名字里有的词」。同义词表是手写的 50 条，覆盖不到业务黑话。
    下一步该做的是「用户点一次『不是这个』就记一笔」，而不是再堆词表。

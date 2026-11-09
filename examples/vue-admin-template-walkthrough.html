@@ -1,0 +1,455 @@
+<!--
+  Vendored from roxorlt/UEmaster · skills/flow-walkthrough/templates/walkthrough.html
+  Upstream: https://github.com/roxorlt/UEmaster
+  Commit:   f6de00fc525715f891c0a9a896154a0ffbcdc17f (2026-09-24)
+  License:  MIT — see lib/vendor/uemaster/LICENSE, NOTICE, docs/vendor.md
+  Modified for repotruth (everything else is upstream, byte for byte):
+    · added HEAD_EXTRA / INTRO / FOOT / FLOW_TITLE template slots (generator meta, 正文, 研发参考, 左栏短标题)
+    · deep link accepts #node=<id> and #node=<id>&state=<group>/<stateId>
+    · 上游的“使用说明”第三块换成本产品的边界说明占位（USAGE_NOTE slot）
+-->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vue-admin-template · 需求走查：用户登录页面是怎么做的？</title>
+<style>
+:root {
+  --wt-bg: #f7f7f7; --wt-white: #ffffff;
+  --wt-border: #c0c0c0; --wt-border-light: #e0e0e0;
+  --wt-text: #333333; --wt-dim: #888888; --wt-light: #aaaaaa;
+  --wt-fill: #e8e8e8; --wt-accent: #555555;
+
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100%; background: var(--wt-bg); color: var(--wt-text);
+  font-family: -apple-system, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif; }
+.layout { display: flex; min-height: 100vh; gap: 18px; padding: 20px; justify-content: center; align-items: flex-start; }
+
+/* 左：流程画布 */
+.flow-panel { width: 520px; flex-shrink: 0; position: sticky; top: 20px;
+  height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.flow-panel.fs { position: fixed; inset: 0; z-index: 300; width: auto; height: 100vh;
+  padding: 16px 20px; background: var(--wt-bg); }
+.fp-title { font-size: 16px; font-weight: 700; border-bottom: 2px solid var(--wt-text);
+  padding-bottom: 6px; margin-bottom: 8px; }
+.fp-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11px; color: var(--wt-dim); }
+.zb { padding: 2px 10px; border: 1px solid var(--wt-border); border-radius: 4px; cursor: pointer;
+  background: var(--wt-white); user-select: none; color: var(--wt-text); }
+.zv { min-width: 40px; text-align: center; }
+.flow-svg { flex: 1; min-height: 0; overflow: hidden; border: 1px solid var(--wt-border-light);
+  border-radius: 6px; background: var(--wt-white); cursor: grab; touch-action: none; user-select: none; }
+.flow-svg:active { cursor: grabbing; }
+.flow-canvas-inner { transform-origin: 0 0; will-change: transform; }
+.flow-svg svg { width: 100%; height: auto; display: block; }
+.flow-svg g[data-node] { cursor: pointer; }
+.flow-svg g[data-node]:hover rect, .flow-svg g[data-node]:hover polygon { stroke-width: 2.5px; }
+
+/* 中：设备框 */
+.stage { flex-shrink: 0; position: sticky; top: 20px; }
+.frame-phone { width: 375px; min-height: 680px; max-height: calc(100vh - 40px); overflow-y: auto;
+  background: var(--wt-white); border: 1px solid var(--wt-border); border-radius: 12px; }
+.frame-phone::-webkit-scrollbar { width: 0; }
+.frame-wide { width: 690px; background: var(--wt-white); border: 1px solid var(--wt-border); border-radius: 8px; overflow: hidden; }
+.hidden { display: none !important; }
+.page { display: none; padding-bottom: 24px; background: var(--wt-white); }
+.page.active { display: block; }
+
+/* 右：标注 */
+.anno-panel { width: 300px; flex-shrink: 0; position: sticky; top: 20px;
+  max-height: calc(100vh - 40px); overflow-y: auto; }
+.anno-card { padding: 12px; border: 1px solid var(--wt-border-light); border-radius: 4px;
+  background: var(--wt-white); margin-bottom: 14px; }
+.anno-card-title { font-size: 11px; font-weight: 600; color: var(--wt-dim); letter-spacing: 1px; margin-bottom: 10px; }
+#anno-node-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.anno-item { font-size: 12px; color: var(--wt-dim); line-height: 1.65; margin-bottom: 10px; }
+.anno-item:last-child { margin-bottom: 0; }
+.anno-item b { display: block; color: var(--wt-text); margin-bottom: 2px; }
+.st-title { font-size: 12px; color: var(--wt-text); margin-bottom: 8px; }
+.st-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-btn { padding: 4px 10px; border: 1px solid var(--wt-border); border-radius: 12px; font-size: 12px;
+  background: var(--wt-white); color: var(--wt-text); cursor: pointer; font-family: inherit; }
+.st-btn:hover { border-color: var(--wt-accent); }
+.st-btn.cur { background: var(--wt-accent); color: var(--wt-white); border-color: var(--wt-accent); cursor: default; }
+
+/* 页面片段可用的基础组件样式 */
+.wt-titlebar { display: flex; align-items: center; height: 44px; padding: 0 12px;
+  border-bottom: 1px solid var(--wt-border); font-size: 15px; font-weight: 600; justify-content: center; }
+.wt-body { padding: 16px; }
+.wt-input { width: 100%; padding: 9px 10px; border: 1px solid var(--wt-border); border-radius: 5px;
+  font-size: 13px; background: var(--wt-white); margin-bottom: 12px; }
+.wt-btn { display: block; width: 100%; padding: 9px 0; border: none; border-radius: 18px;
+  font-size: 13px; text-align: center; cursor: pointer; background: var(--wt-accent); color: var(--wt-white); }
+.wt-card { margin: 12px; padding: 12px; border: 1px solid var(--wt-border); border-radius: 6px; background: var(--wt-white); }
+.wt-badge { display: inline-block; padding: 2px 8px; border: 1px solid var(--wt-border); border-radius: 3px;
+  font-size: 11px; color: var(--wt-dim); background: var(--wt-fill); }
+.wt-dimtext { font-size: 12px; color: var(--wt-dim); line-height: 1.6; }
+
+/* 页面片段可用的扩展组件：手机页面骨架、列表、弹窗与提示、后台页面（用法见 references/page-guide.md） */
+.wt-screen { position: relative; min-height: 680px; margin-bottom: -24px; }
+.wt-statusbar { display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 14px;
+  font-size: 11px; color: var(--wt-dim); }
+.wt-sb-icons { position: relative; width: 22px; height: 10px; border: 1px solid var(--wt-light); border-radius: 2px; }
+.wt-sb-icons::after { content: ""; position: absolute; right: -4px; top: 2px; width: 2px; height: 4px; background: var(--wt-light); }
+.wt-nav { position: relative; display: flex; align-items: center; height: 44px; padding: 0 12px;
+  border-bottom: 1px solid var(--wt-border-light); font-size: 13px; }
+.wt-nav-title { position: absolute; left: 60px; right: 60px; text-align: center; font-size: 15px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.wt-nav-back { width: 10px; height: 10px; margin-left: 4px; border-left: 2px solid var(--wt-text);
+  border-bottom: 2px solid var(--wt-text); transform: rotate(45deg); cursor: pointer; }
+.wt-nav-action { margin-left: auto; color: var(--wt-dim); cursor: pointer; }
+.wt-tabs { display: flex; padding: 0 8px; border-bottom: 1px solid var(--wt-border-light); }
+.wt-tab { padding: 10px 10px 8px; font-size: 13px; color: var(--wt-dim); border-bottom: 2px solid transparent; cursor: pointer; }
+.wt-tab.wt-on { color: var(--wt-text); font-weight: 600; border-bottom-color: var(--wt-accent); }
+.wt-section { padding: 14px 16px 6px; font-size: 13px; font-weight: 600; }
+.wt-list { margin: 0 16px; }
+.wt-list-item { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--wt-border-light); }
+.wt-list-item:last-child { border-bottom: none; }
+.wt-li-main { flex: 1; min-width: 0; }
+.wt-li-title { font-size: 14px; }
+.wt-li-sub { margin-top: 2px; font-size: 12px; color: var(--wt-dim); }
+.wt-li-extra { font-size: 12px; color: var(--wt-dim); }
+.wt-li-arrow { width: 7px; height: 7px; border-top: 1.5px solid var(--wt-light); border-right: 1.5px solid var(--wt-light); transform: rotate(45deg); }
+.wt-img { display: flex; align-items: center; justify-content: center; min-height: 60px; border: 1px solid var(--wt-border-light);
+  border-radius: 4px; background: var(--wt-fill); color: var(--wt-light); font-size: 11px; }
+.wt-empty { padding: 48px 16px; text-align: center; font-size: 13px; color: var(--wt-dim); }
+.wt-empty::before { content: ""; display: block; width: 56px; height: 56px; margin: 0 auto 12px;
+  border: 1.5px dashed var(--wt-border); border-radius: 50%; }
+.wt-btn.wt-btn-ghost { background: var(--wt-white); color: var(--wt-text); border: 1px solid var(--wt-border); }
+.wt-btn.wt-btn-sm { display: inline-block; width: auto; padding: 3px 10px; font-size: 11px; border-radius: 12px; }
+.wt-bottombar { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px 18px;
+  border-top: 1px solid var(--wt-border-light); background: var(--wt-white); }
+.wt-modal { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.35); }
+.wt-dialog { width: 270px; padding: 18px 16px 14px; border-radius: 10px; background: var(--wt-white); text-align: center; }
+.wt-dialog-title { margin-bottom: 8px; font-size: 15px; font-weight: 600; }
+.wt-dialog-body { margin-bottom: 14px; font-size: 13px; line-height: 1.6; color: var(--wt-dim); }
+.wt-dialog-actions { display: flex; gap: 10px; }
+.wt-dialog-actions .wt-btn { flex: 1; }
+.wt-toast { position: absolute; left: 50%; top: 46%; z-index: 6; max-width: 260px; padding: 10px 16px; transform: translate(-50%, -50%);
+  border-radius: 8px; background: rgba(0, 0, 0, 0.75); color: var(--wt-white); font-size: 13px; line-height: 1.5; text-align: center; }
+.wt-browserbar { display: flex; align-items: center; gap: 5px; padding: 10px 12px; border-bottom: 1px solid var(--wt-border-light); }
+.wt-browserbar i { width: 9px; height: 9px; border: 1px solid var(--wt-border); border-radius: 50%; }
+.wt-browserbar span { flex: 1; margin-left: 8px; padding: 4px 12px; border-radius: 4px; background: var(--wt-fill);
+  font-size: 11px; color: var(--wt-dim); }
+.wt-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.wt-table th { padding: 7px 8px; background: var(--wt-fill); color: var(--wt-dim); font-size: 10px; font-weight: 600; text-align: left; }
+.wt-table td { padding: 9px 8px; border-top: 1px solid var(--wt-border-light); }
+</style>
+<meta name="generator" content="repotruth v0.3.0">
+<style>
+/* 三栏宽度：模板写死 520/690/300，1280 宽会溢出到屏幕外（左右两栏看不见）。
+   这里改成按视口收缩，窄屏时才允许横向滚动。 */
+.layout { gap: 14px; padding: 16px; justify-content: center; align-items: flex-start; overflow-x: auto; }
+.flow-panel { width: clamp(300px, 27vw, 420px); }
+.frame-wide { width: clamp(430px, 45vw, 660px); }
+.anno-panel { width: clamp(238px, 21.5vw, 320px); }
+.rt-head { max-width: 1120px; margin: 0 auto; padding: 28px 24px 6px; }
+.rt-kicker { margin: 0 0 6px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; }
+.rt-h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.3; letter-spacing: -0.01em; }
+.rt-meta { margin: 0 0 12px; font-size: 12px; color: #6b7280; }
+.rt-body { font-size: 14px; line-height: 1.75; max-width: 900px; }
+.rt-body p { margin: 0 0 8px; }
+.rt-foot { max-width: 1120px; margin: 0 auto; padding: 8px 24px 40px; }
+.rt-limits { background: #fffdf5; border: 1px solid #f0e4bf; border-radius: 12px; padding: 18px 22px; margin-bottom: 16px; font-size: 13px; }
+.rt-limits h2 { margin: 0 0 10px; font-size: 15px; }
+.rt-limits ul { margin: 0; padding-left: 20px; line-height: 1.8; }
+.rt-limits li { margin-bottom: 6px; }
+.rt-devref { background: #fbfbfc; border: 1px dashed #d1d5db; border-radius: 12px; padding: 14px 18px; font-size: 12px; margin-bottom: 16px; }
+.rt-devref summary { cursor: pointer; font-weight: 600; color: #374151; }
+.rt-devref h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin: 16px 0 6px; }
+.rt-frag { padding: 18px 18px 24px; }
+.rt-frag-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rt-frag-kind { font-size: 11px; padding: 2px 8px; border: 1px solid #9aa1ab; border-radius: 3px; color: #4b5563; background: #f4f5f7; }
+.rt-kind-backend { background: #eceef1; }
+.rt-frag-name { font-size: 16px; font-weight: 700; }
+.rt-frag-note { margin: 0 0 14px; font-size: 12px; color: #6b7280; line-height: 1.7; }
+.rt-block { margin-bottom: 16px; }
+.rt-block-title { font-size: 12px; font-weight: 600; color: #4b5563; margin-bottom: 8px; }
+.rt-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.rt-chip { font-size: 12px; padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 12px; background: #fff; }
+.rt-chip span { margin-left: 6px; color: #8a9199; font-size: 11px; }
+.rt-empty { font-size: 12px; line-height: 1.8; color: #6b7280; border: 1px dashed #d1d5db; border-radius: 8px; padding: 12px 14px; background: #fbfbfc; }
+.rt-banner { margin: 0 0 12px; padding: 8px 12px; font-size: 12px; line-height: 1.7; color: #7c4a03; background: #fff8e6; border: 1px solid #f0dca8; border-radius: 8px; }
+.rt-seq { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; padding: 8px; margin-bottom: 16px; }
+.rt-seq svg { display: block; max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<header class="rt-head">
+<p class="rt-kicker">repotruth · 需求走查</p>
+<h1 class="rt-h1">用户登录页面是怎么做的？</h1>
+<p class="rt-meta">仓 vue-admin-template · 索引文件 68 个 · 代码快照 2021-11-19 · 生成于 2026-11-09 · 节点 5 个</p>
+<div class="rt-body">
+<!-- product-body:start -->
+<p>你问的是「用户登录页面是怎么做的？」。在 vue-admin-template 的索引里，有 5 处代码的名字与它相关，归成了 5 个节点：1 个页面、4 个没有页面的模块区域。</p>
+<p>左边是这些节点的顺序，中间是每个节点能看到的东西（有页面就给页面结构，没有页面就给时序骨架），右边是这个节点上能从索引证明的事。顺序只代表「同一批候选」，不代表真实跳转或调用顺序；两种连线在图上长得不一样。</p>
+<p>这一轮读的是 vue-admin-template 的本机索引：68 个可读文件，代码快照 2021-11-19。材料里没有一个字来自对实现逻辑的阅读，需要研发确认的地方单独标在右栏。</p>
+<!-- product-body:end -->
+</div>
+</header>
+<div class="layout">
+
+<aside class="flow-panel">
+  <div class="fp-title">需求走查 · 登录（login）</div>
+  <div class="fp-bar">
+    <span class="zb" onclick="setZoom(-1)">&#65293;</span>
+    <span class="zv" id="zv">100%</span>
+    <span class="zb" onclick="setZoom(1)">&#65291;</span>
+    <span class="zb" onclick="setZoom(0)">适宽</span>
+    <span class="zb" id="fs-btn" onclick="toggleFs()">全屏</span>
+    <span style="margin-left:auto;">点击节点联动右侧页面</span>
+  </div>
+  <div class="flow-svg" id="flow-svg"><div class="flow-canvas-inner" id="flow-canvas-inner"><svg id="flowsvg" xmlns="http://www.w3.org/2000/svg" data-flowspec="1" viewBox="0 0 380 370" width="380" height="370" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif"><defs><marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4b5563"/></marker></defs><line x1="190" y1="54" x2="190" y2="86" stroke="#9aa1ab" stroke-width="1.2" stroke-dasharray="5 4"/><text x="200" y="74" font-size="10.5" fill="#8a9199">同批候选</text><line x1="190" y1="130" x2="190" y2="162" stroke="#9aa1ab" stroke-width="1.2" stroke-dasharray="5 4"/><text x="200" y="150" font-size="10.5" fill="#8a9199">同批候选</text><line x1="190" y1="206" x2="190" y2="238" stroke="#9aa1ab" stroke-width="1.2" stroke-dasharray="5 4"/><text x="200" y="226" font-size="10.5" fill="#8a9199">同批候选</text><line x1="190" y1="282" x2="190" y2="314" stroke="#9aa1ab" stroke-width="1.2" stroke-dasharray="5 4"/><text x="200" y="302" font-size="10.5" fill="#8a9199">同批候选</text><g class="node" id="flowchart-page-login-0" data-node="page-login"><rect x="24" y="12" width="332" height="42" rx="4" fill="#ffffff" stroke="#333333" stroke-width="1.5"/><text x="190" y="37" font-size="13" fill="#1f2937" text-anchor="middle">登录（login）</text></g><g class="node" id="flowchart-area-src-api-1" data-node="area-src-api"><rect x="24" y="88" width="332" height="42" rx="4" fill="#eceef1" stroke="#5b6470" stroke-width="1.2"/><rect x="28" y="92" width="324" height="34" rx="3" fill="none" stroke="#5b6470" stroke-width="0.8"/><text x="190" y="113" font-size="13" fill="#1f2937" text-anchor="middle">模块区：api</text></g><g class="node" id="flowchart-area-mock-2" data-node="area-mock"><rect x="24" y="164" width="332" height="42" rx="4" fill="#eceef1" stroke="#5b6470" stroke-width="1.2"/><rect x="28" y="168" width="324" height="34" rx="3" fill="none" stroke="#5b6470" stroke-width="0.8"/><text x="190" y="189" font-size="13" fill="#1f2937" text-anchor="middle">模块区：mock</text></g><g class="node" id="flowchart-area-src-store-3" data-node="area-src-store"><rect x="24" y="240" width="332" height="42" rx="4" fill="#eceef1" stroke="#5b6470" stroke-width="1.2"/><rect x="28" y="244" width="324" height="34" rx="3" fill="none" stroke="#5b6470" stroke-width="0.8"/><text x="190" y="265" font-size="13" fill="#1f2937" text-anchor="middle">模块区：store</text></g><g class="node" id="flowchart-area-src-utils-4" data-node="area-src-utils"><rect x="24" y="316" width="332" height="42" rx="4" fill="#eceef1" stroke="#5b6470" stroke-width="1.2"/><rect x="28" y="320" width="324" height="34" rx="3" fill="none" stroke="#5b6470" stroke-width="0.8"/><text x="190" y="341" font-size="13" fill="#1f2937" text-anchor="middle">模块区：utils</text></g><rect id="sel-ring" visibility="hidden" fill="none" stroke="#2563eb" stroke-width="2" rx="8"/></svg></div></div>
+</aside>
+
+<div class="stage">
+  <div class="frame-phone" id="frame-phone">
+
+  </div>
+  <div class="frame-wide hidden" id="frame-wide">
+<div class="page" id="pg-page-login">
+<div class="rt-frag" data-frag="page">
+  <div class="rt-frag-head">
+    <span class="rt-frag-kind">页面</span>
+    <span class="rt-frag-name">登录（login）</span>
+  </div>
+  <p class="rt-frag-note">这一页是索引按「src/views/**」认出来的。中间栏不画假截图——下面只写索引读到的结构。</p>
+  <div class="rt-block">
+    <div class="rt-block-title">这个页面由这些模块组成</div>
+    <div class="rt-empty">索引没读到这一页引用的模块。<br>这一页用的是别名路径或跨包引用，本版只解析相对引用；<b>读不到不等于没有</b>。</div>
+  </div>
+  <div class="rt-block">
+    <div class="rt-block-title">索引读到的事实</div>
+    <table class="wt-table"><thead><tr><th>索引读到</th><th>值</th></tr></thead><tbody><tr><td>页面位置</td><td><code>src/views/login/index</code></td></tr><tr><td>页面文件</td><td>1 个</td></tr><tr><td>页面内模块</td><td>读不到</td></tr><tr><td>合计体积</td><td>5 KB</td></tr><tr><td>语言</td><td>Vue</td></tr><tr><td>被别的模块引用</td><td>0 个</td></tr><tr><td>最近改动</td><td>2019-04-19（距今 2761 天）</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+<div class="page" id="sq-area-src-api">
+<div class="rt-frag" data-frag="backend">
+  <div class="rt-frag-head">
+    <span class="rt-frag-kind rt-kind-backend">没有页面</span>
+    <span class="rt-frag-name">模块区：api</span>
+  </div>
+  <p class="rt-frag-note">这一片命中的是模块，不是页面。索引读不出调用顺序，所以下面是时序骨架。</p>
+  <div class="rt-banner">时序骨架 · <b>不是从代码里读出来的流程</b>：参与者与步骤需要研发确认。参与者只从固定词表里取：用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道。</div>
+  <div class="rt-seq"><svg xmlns="http://www.w3.org/2000/svg" data-seqspec="1" viewBox="0 0 383 184" width="383" height="184" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif" role="img"><defs><marker id="seq-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker><marker id="seq-arw-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#777" stroke-width="1"/></marker></defs><line x1="64" y1="48" x2="64" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="170" y1="48" x2="170" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="276" y1="48" x2="276" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><g class="message" id="seq-msg-0"><line x1="65" y1="74" x2="169" y2="74" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="117" y="67" font-size="11" fill="#6b7280" text-anchor="middle">1. 发起操作</text></g><g class="message" id="seq-msg-1"><line x1="171" y1="100" x2="275" y2="100" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="223" y="93" font-size="11" fill="#6b7280" text-anchor="middle">2. 发起请求</text></g><g class="message" id="seq-msg-2"><polyline points="276,118 314,118 314,134 276,134" fill="none" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="322" y="130" font-size="11" fill="#6b7280">3. 处理</text></g><g class="message" id="seq-msg-3"><line x1="275" y1="152" x2="171" y2="152" stroke="#8a9199" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#seq-arw-open)"/><text x="223" y="145" font-size="11" fill="#6b7280" text-anchor="middle">4. 返回结果</text></g><g class="participant" id="seq-p0"><rect x="20" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="64" y="36" font-size="12.5" fill="#333" text-anchor="middle">用户</text></g><g class="participant" id="seq-p1"><rect x="126" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="170" y="36" font-size="12.5" fill="#333" text-anchor="middle">页面</text></g><g class="participant" id="seq-p2"><rect x="232" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="276" y="36" font-size="12.5" fill="#333" text-anchor="middle">服务端</text></g></svg></div>
+  <div class="rt-block">
+    <div class="rt-block-title">索引读到的事实</div>
+    <table class="wt-table"><thead><tr><th>索引读到</th><th>值</th></tr></thead><tbody><tr><td>代码区域</td><td><code>src/api</code></td></tr><tr><td>文件数</td><td>1 个</td></tr><tr><td>合计体积</td><td>1 KB</td></tr><tr><td>语言</td><td>JavaScript</td></tr><tr><td>被别的模块引用</td><td>0 个</td></tr><tr><td>最近改动</td><td>2020-01-09（距今 2496 天）</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+<div class="page" id="sq-area-mock">
+<div class="rt-frag" data-frag="backend">
+  <div class="rt-frag-head">
+    <span class="rt-frag-kind rt-kind-backend">没有页面</span>
+    <span class="rt-frag-name">模块区：mock</span>
+  </div>
+  <p class="rt-frag-note">这一片命中的是模块，不是页面。索引读不出调用顺序，所以下面是时序骨架。</p>
+  <div class="rt-banner">时序骨架 · <b>不是从代码里读出来的流程</b>：参与者与步骤需要研发确认。参与者只从固定词表里取：用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道。</div>
+  <div class="rt-seq"><svg xmlns="http://www.w3.org/2000/svg" data-seqspec="1" viewBox="0 0 383 184" width="383" height="184" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif" role="img"><defs><marker id="seq-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker><marker id="seq-arw-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#777" stroke-width="1"/></marker></defs><line x1="64" y1="48" x2="64" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="170" y1="48" x2="170" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="276" y1="48" x2="276" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><g class="message" id="seq-msg-0"><line x1="65" y1="74" x2="169" y2="74" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="117" y="67" font-size="11" fill="#6b7280" text-anchor="middle">1. 发起操作</text></g><g class="message" id="seq-msg-1"><line x1="171" y1="100" x2="275" y2="100" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="223" y="93" font-size="11" fill="#6b7280" text-anchor="middle">2. 发起请求</text></g><g class="message" id="seq-msg-2"><polyline points="276,118 314,118 314,134 276,134" fill="none" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="322" y="130" font-size="11" fill="#6b7280">3. 处理</text></g><g class="message" id="seq-msg-3"><line x1="275" y1="152" x2="171" y2="152" stroke="#8a9199" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#seq-arw-open)"/><text x="223" y="145" font-size="11" fill="#6b7280" text-anchor="middle">4. 返回结果</text></g><g class="participant" id="seq-p0"><rect x="20" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="64" y="36" font-size="12.5" fill="#333" text-anchor="middle">用户</text></g><g class="participant" id="seq-p1"><rect x="126" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="170" y="36" font-size="12.5" fill="#333" text-anchor="middle">页面</text></g><g class="participant" id="seq-p2"><rect x="232" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="276" y="36" font-size="12.5" fill="#333" text-anchor="middle">服务端</text></g></svg></div>
+  <div class="rt-block">
+    <div class="rt-block-title">索引读到的事实</div>
+    <table class="wt-table"><thead><tr><th>索引读到</th><th>值</th></tr></thead><tbody><tr><td>代码区域</td><td><code>mock</code></td></tr><tr><td>文件数</td><td>1 个</td></tr><tr><td>合计体积</td><td>2 KB</td></tr><tr><td>语言</td><td>JavaScript</td></tr><tr><td>被别的模块引用</td><td>1 个文件引用过（最多 1 处）</td></tr><tr><td>最近改动</td><td>2020-06-15（距今 2338 天）</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+<div class="page" id="sq-area-src-store">
+<div class="rt-frag" data-frag="backend">
+  <div class="rt-frag-head">
+    <span class="rt-frag-kind rt-kind-backend">没有页面</span>
+    <span class="rt-frag-name">模块区：store</span>
+  </div>
+  <p class="rt-frag-note">这一片命中的是模块，不是页面。索引读不出调用顺序，所以下面是时序骨架。</p>
+  <div class="rt-banner">时序骨架 · <b>不是从代码里读出来的流程</b>：参与者与步骤需要研发确认。参与者只从固定词表里取：用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道。</div>
+  <div class="rt-seq"><svg xmlns="http://www.w3.org/2000/svg" data-seqspec="1" viewBox="0 0 383 184" width="383" height="184" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif" role="img"><defs><marker id="seq-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker><marker id="seq-arw-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#777" stroke-width="1"/></marker></defs><line x1="64" y1="48" x2="64" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="170" y1="48" x2="170" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="276" y1="48" x2="276" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><g class="message" id="seq-msg-0"><line x1="65" y1="74" x2="169" y2="74" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="117" y="67" font-size="11" fill="#6b7280" text-anchor="middle">1. 发起操作</text></g><g class="message" id="seq-msg-1"><line x1="171" y1="100" x2="275" y2="100" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="223" y="93" font-size="11" fill="#6b7280" text-anchor="middle">2. 发起请求</text></g><g class="message" id="seq-msg-2"><polyline points="276,118 314,118 314,134 276,134" fill="none" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="322" y="130" font-size="11" fill="#6b7280">3. 处理</text></g><g class="message" id="seq-msg-3"><line x1="275" y1="152" x2="171" y2="152" stroke="#8a9199" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#seq-arw-open)"/><text x="223" y="145" font-size="11" fill="#6b7280" text-anchor="middle">4. 返回结果</text></g><g class="participant" id="seq-p0"><rect x="20" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="64" y="36" font-size="12.5" fill="#333" text-anchor="middle">用户</text></g><g class="participant" id="seq-p1"><rect x="126" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="170" y="36" font-size="12.5" fill="#333" text-anchor="middle">页面</text></g><g class="participant" id="seq-p2"><rect x="232" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="276" y="36" font-size="12.5" fill="#333" text-anchor="middle">服务端</text></g></svg></div>
+  <div class="rt-block">
+    <div class="rt-block-title">索引读到的事实</div>
+    <table class="wt-table"><thead><tr><th>索引读到</th><th>值</th></tr></thead><tbody><tr><td>代码区域</td><td><code>src/store</code></td></tr><tr><td>文件数</td><td>1 个</td></tr><tr><td>合计体积</td><td>2 KB</td></tr><tr><td>语言</td><td>JavaScript</td></tr><tr><td>被别的模块引用</td><td>1 个文件引用过（最多 1 处）</td></tr><tr><td>最近改动</td><td>2020-06-26（距今 2327 天）</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+<div class="page" id="sq-area-src-utils">
+<div class="rt-frag" data-frag="backend">
+  <div class="rt-frag-head">
+    <span class="rt-frag-kind rt-kind-backend">没有页面</span>
+    <span class="rt-frag-name">模块区：utils</span>
+  </div>
+  <p class="rt-frag-note">这一片命中的是模块，不是页面。索引读不出调用顺序，所以下面是时序骨架。</p>
+  <div class="rt-banner">时序骨架 · <b>不是从代码里读出来的流程</b>：参与者与步骤需要研发确认。参与者只从固定词表里取：用户 / 页面 / 服务端 / 支付渠道 / 第三方 / 通知渠道。</div>
+  <div class="rt-seq"><svg xmlns="http://www.w3.org/2000/svg" data-seqspec="1" viewBox="0 0 383 184" width="383" height="184" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Segoe UI, Microsoft YaHei, sans-serif" role="img"><defs><marker id="seq-arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker><marker id="seq-arw-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#777" stroke-width="1"/></marker></defs><line x1="64" y1="48" x2="64" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="170" y1="48" x2="170" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><line x1="276" y1="48" x2="276" y2="168" stroke="#b6bcc4" stroke-width="1" stroke-dasharray="5 4"/><g class="message" id="seq-msg-0"><line x1="65" y1="74" x2="169" y2="74" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="117" y="67" font-size="11" fill="#6b7280" text-anchor="middle">1. 发起操作</text></g><g class="message" id="seq-msg-1"><line x1="171" y1="100" x2="275" y2="100" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="223" y="93" font-size="11" fill="#6b7280" text-anchor="middle">2. 发起请求</text></g><g class="message" id="seq-msg-2"><polyline points="276,118 314,118 314,134 276,134" fill="none" stroke="#4b5563" stroke-width="1.4" marker-end="url(#seq-arw)"/><text x="322" y="130" font-size="11" fill="#6b7280">3. 处理</text></g><g class="message" id="seq-msg-3"><line x1="275" y1="152" x2="171" y2="152" stroke="#8a9199" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#seq-arw-open)"/><text x="223" y="145" font-size="11" fill="#6b7280" text-anchor="middle">4. 返回结果</text></g><g class="participant" id="seq-p0"><rect x="20" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="64" y="36" font-size="12.5" fill="#333" text-anchor="middle">用户</text></g><g class="participant" id="seq-p1"><rect x="126" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="170" y="36" font-size="12.5" fill="#333" text-anchor="middle">页面</text></g><g class="participant" id="seq-p2"><rect x="232" y="16" width="88" height="32" rx="4" fill="#f4f5f7" stroke="#9aa1ab" stroke-width="1"/><text class="seq-pname" x="276" y="36" font-size="12.5" fill="#333" text-anchor="middle">服务端</text></g></svg></div>
+  <div class="rt-block">
+    <div class="rt-block-title">索引读到的事实</div>
+    <table class="wt-table"><thead><tr><th>索引读到</th><th>值</th></tr></thead><tbody><tr><td>代码区域</td><td><code>src/utils</code></td></tr><tr><td>文件数</td><td>1 个</td></tr><tr><td>合计体积</td><td>1 KB</td></tr><tr><td>语言</td><td>JavaScript</td></tr><tr><td>被别的模块引用</td><td>0 个</td></tr><tr><td>最近改动</td><td>2019-02-27（距今 2812 天）</td></tr></tbody></table>
+  </div>
+</div>
+</div>
+  </div>
+</div>
+
+<aside class="anno-panel">
+  <div class="anno-card">
+    <div class="anno-card-title">当前节点</div>
+    <div id="anno-node-title"></div>
+    <div id="anno-body"></div>
+  </div>
+  <div class="anno-card hidden" id="state-card">
+    <div class="anno-card-title">页面状态切换</div>
+    <div id="state-body"></div>
+  </div>
+  <div class="anno-card">
+    <div class="anno-card-title">使用说明</div>
+    <div class="anno-item">左侧流程图节点可点击，右侧同步切换到该节点对应的页面；画布可拖拽平移、按钮缩放，「适宽」复位视图。</div>
+    <div class="anno-item">中间页面有多个状态时，右侧出现「页面状态切换」，点其他状态切到对应节点；单状态页面不显示。</div>
+    <div class="anno-item">深链：地址后加 #node=节点id 可直接停在某个节点；有多个状态时再加 &state=组名/状态名。</div>
+  </div>
+</aside>
+
+</div>
+
+<script>
+var NODES = {"page-login":{"page":"pg-page-login","title":"页面：登录（login）","anno":[["这一节是什么","索引按目录约定认出的一个页面；下面是它的结构，不是它的业务规则。"],["规模","1 个文件、约 5 KB、Vue。"],["谁能改到它","没有别的模块引用它——页面通常是入口，这个数字为 0 不代表它不重要。"],["最近改动","2019-04-19（距今 2761 天）。"],["待研发确认（未证实）","这一页有哪些状态、按钮点了去哪里、提交给谁、失败怎么提示——索引读不到，不要从这份材料推断。"]]},"area-src-api":{"page":"sq-area-src-api","title":"没有页面：api 这一片","anno":[["为什么没有页面","这一片命中的是模块与配置，索引里没有任何页面约定命中它们，所以不给页面示意。"],["规模","1 个文件、约 1 KB。"],["谁在用它","没有被别的模块引用过：它可能是入口，也可能是这一版解析不到的引用写法。"],["最近改动","2020-01-09（距今 2496 天）。"],["待研发确认（未证实）","真实调用顺序、失败与重试、这一片由谁触发——上面的时序是骨架，不是证据，需要研发确认。"]]},"area-mock":{"page":"sq-area-mock","title":"没有页面：mock 这一片","anno":[["为什么没有页面","这一片命中的是模块与配置，索引里没有任何页面约定命中它们，所以不给页面示意。"],["规模","1 个文件、约 2 KB。"],["谁在用它","1 个文件引用过它，最多一处被 1 个文件引用。"],["最近改动","2020-06-15（距今 2338 天）。"],["待研发确认（未证实）","真实调用顺序、失败与重试、这一片由谁触发——上面的时序是骨架，不是证据，需要研发确认。"]]},"area-src-store":{"page":"sq-area-src-store","title":"没有页面：store 这一片","anno":[["为什么没有页面","这一片命中的是模块与配置，索引里没有任何页面约定命中它们，所以不给页面示意。"],["规模","1 个文件、约 2 KB。"],["谁在用它","1 个文件引用过它，最多一处被 1 个文件引用。"],["最近改动","2020-06-26（距今 2327 天）。"],["待研发确认（未证实）","真实调用顺序、失败与重试、这一片由谁触发——上面的时序是骨架，不是证据，需要研发确认。"]]},"area-src-utils":{"page":"sq-area-src-utils","title":"没有页面：utils 这一片","anno":[["为什么没有页面","这一片命中的是模块与配置，索引里没有任何页面约定命中它们，所以不给页面示意。"],["规模","1 个文件、约 1 KB。"],["谁在用它","没有被别的模块引用过：它可能是入口，也可能是这一版解析不到的引用写法。"],["最近改动","2019-02-27（距今 2812 天）。"],["待研发确认（未证实）","真实调用顺序、失败与重试、这一片由谁触发——上面的时序是骨架，不是证据，需要研发确认。"]]}};
+var PAGE_FRAME = {"pg-page-login":"wide","sq-area-src-api":"wide","sq-area-mock":"wide","sq-area-src-store":"wide","sq-area-src-utils":"wide"};
+var STATE_GROUPS = {};
+var currentNode = null;
+
+function renderStates(n) {
+  var card = document.getElementById("state-card"), body = document.getElementById("state-body");
+  var st = n.state ? String(n.state).split("/") : null;
+  var grp = st && STATE_GROUPS[st[0]];
+  if (!grp || !grp.states || grp.states.length < 2) {
+    body.innerHTML = ""; card.classList.add("hidden"); return;
+  }
+  var h = grp.title ? '<div class="st-title">' + grp.title + "</div>" : "";
+  h += '<div class="st-group">';
+  grp.states.forEach(function (s) {
+    if (s.id === st[1]) h += '<span class="st-btn cur">' + s.label + "（当前）</span>";
+    else h += '<button class="st-btn" onclick="goNode(\'' + s.node + '\')">' + s.label + "</button>";
+  });
+  body.innerHTML = h + "</div>"; card.classList.remove("hidden");
+}
+
+function setViewByNode(nodeId) {
+  var n = NODES[nodeId];
+  if (!n) return;
+  currentNode = nodeId;
+  var frame = PAGE_FRAME[n.page] || "phone";
+  document.getElementById("frame-phone").classList.toggle("hidden", frame !== "phone");
+  document.getElementById("frame-wide").classList.toggle("hidden", frame !== "wide");
+  document.querySelectorAll(".page").forEach(function (p) {
+    p.classList.toggle("active", p.id === n.page);
+  });
+  var ring = document.getElementById("sel-ring");
+  var target = document.querySelector('.flow-svg g[data-node="' + nodeId + '"]');
+  if (ring) {
+    if (target) {
+      var bb = target.getBBox();
+      ring.setAttribute("x", bb.x - 7); ring.setAttribute("y", bb.y - 7);
+      ring.setAttribute("width", bb.width + 14); ring.setAttribute("height", bb.height + 14);
+      ring.setAttribute("visibility", "visible");
+    } else {
+      ring.setAttribute("visibility", "hidden");
+    }
+  }
+  document.getElementById("anno-node-title").textContent = n.title || nodeId;
+  var body = "";
+  (n.anno || []).forEach(function (pair) {
+    body += '<div class="anno-item"><b>' + pair[0] + "</b>" + pair[1] + "</div>";
+  });
+  document.getElementById("anno-body").innerHTML = body;
+  renderStates(n);
+  var ph = document.getElementById("frame-phone");
+  if (ph.scrollTo) ph.scrollTo(0, 0);
+}
+window.goNode = setViewByNode;
+
+document.querySelectorAll('.flow-svg g[data-node]').forEach(function (g) {
+  g.addEventListener("click", function () { setViewByNode(g.getAttribute("data-node")); });
+});
+
+var zoomPct = 100, panX = 0, panY = 0;
+function applyPan() {
+  document.getElementById("flow-canvas-inner").style.transform = "translate(" + panX + "px," + panY + "px)";
+}
+function setZoom(dir) {
+  zoomPct = dir === 0 ? 100 : Math.min(300, Math.max(100, zoomPct + dir * 40));
+  if (dir === 0) { panX = 0; panY = 0; applyPan(); }
+  var svg = document.querySelector("#flow-svg svg");
+  if (svg) svg.style.width = zoomPct + "%";
+  document.getElementById("zv").textContent = zoomPct + "%";
+}
+(function () {
+  var fs = document.getElementById("flow-svg");
+  var dragging = false, movedFlag = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  fs.addEventListener("pointerdown", function (e) {
+    dragging = true; movedFlag = false;
+    sx = e.clientX; sy = e.clientY; ox = panX; oy = panY;
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedFlag = true;
+    panX = ox + dx; panY = oy + dy; applyPan();
+  });
+  window.addEventListener("pointerup", function () { dragging = false; });
+  fs.addEventListener("click", function (e) {
+    if (movedFlag) { e.stopPropagation(); e.preventDefault(); movedFlag = false; }
+  }, true);
+})();
+
+/* 流程画布全屏：按钮切换，ESC 退出，进出时回适宽基准 */
+function toggleFs(force) {
+  var p = document.querySelector(".flow-panel");
+  var on = force !== undefined ? force : !p.classList.contains("fs");
+  p.classList.toggle("fs", on);
+  document.getElementById("fs-btn").textContent = on ? "退出全屏" : "全屏";
+  setZoom(0);
+}
+window.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && document.querySelector(".flow-panel").classList.contains("fs")) toggleFs(false);
+});
+
+/* 深链：#node=<id> 或 #node=<id>&state=<组>/<状态>。
+   为什么要 state：同一个页面的多个状态各有一个代表节点，headless 截图没法点击，
+   只能靠 URL 分别停在不同节点/状态上，再把几帧拼成“点过去”的过程。 */
+var hashQuery = {};
+location.hash.replace(/^#/, "").split("&").forEach(function (pair) {
+  var eq = pair.indexOf("=");
+  if (eq <= 0) return;
+  hashQuery[decodeURIComponent(pair.slice(0, eq))] = decodeURIComponent(pair.slice(eq + 1));
+});
+var initNode = hashQuery.node || (location.hash.match(/node=([\w-]+)/) || [])[1];
+var initState = hashQuery.state;
+if (initState) {
+  var wanted = initState.indexOf("/") === -1 ? null : initState;
+  Object.keys(NODES).some(function (id) {
+    if (NODES[id] && NODES[id].state === wanted) { initNode = id; return true; }
+    return false;
+  });
+}
+setViewByNode(NODES[initNode] ? initNode : "page-login");
+</script>
+<section class="rt-foot">
+<div class="rt-limits">
+<h2>这份材料读到哪、没读到哪</h2>
+<ul>
+<li><b>读了什么</b>：只读本机索引，全程没有联网：vue-admin-template 的 68 个可读文件，索引于 2026-11-09。</li>
+<li><b>怎么读的</b>：按文件名、符号名与页面名做词面比对，中文说法靠一张固定对照表落到英文命名；没有读实现逻辑，也没有读提交说明。</li>
+<li><b>节点是怎么来的</b>：先把命中的文件按「页面」与「目录区域」归并，再按名字相关度排序。页面按目录约定识别，所以只会少算，不会多算。</li>
+<li><b>时序图是什么</b>：有 4 个节点没有页面，画的是时序骨架：参与者只从固定词表里取，步骤是本工具的默认形状，不是从代码里读出来的调用顺序。</li>
+<li><b>页面状态</b>：这一版没有能证明的页面状态差异，所以右栏没有状态切换按钮。页面有哪些状态需要研发给，不能从文件树推。</li>
+<li><b>没找到 ≠ 不存在</b>：节点里没有某个东西，只代表这一轮没命中。要确认「确实没有」，需要研发给一份页面入口或功能清单再对一次。</li>
+<li><b>根本没量</b>：业务规则、权限、线上真实请求链路、页面间跳转——这些不在索引里，也不要从这份材料推断。</li>
+</ul>
+</div>
+<details class="rt-devref"><summary>研发参考（正文与右栏里的每个数字都能在这里找到坐标）</summary>
+<p class="muted">检索词：用户、户登、登录、login、signin、auth、user、account、member</p>
+<table class="wt-table"><thead><tr><th>节点</th><th>仓 / 路径</th><th>页面</th><th>被引用</th><th>最近改动</th><th>分数</th></tr></thead><tbody><tr><td>page-login</td><td><code>vue-admin-template:src/views/login/index.vue</code></td><td><code>src/views/login/index</code></td><td>0 处</td><td>2019-04-19</td><td>4</td></tr><tr><td>area-src-api</td><td><code>vue-admin-template:src/api/user.js</code></td><td>—</td><td>0 处</td><td>2020-01-09</td><td>8</td></tr><tr><td>area-mock</td><td><code>vue-admin-template:mock/user.js</code></td><td>—</td><td>1 处</td><td>2020-06-15</td><td>4</td></tr><tr><td>area-src-store</td><td><code>vue-admin-template:src/store/modules/user.js</code></td><td>—</td><td>1 处</td><td>2020-06-26</td><td>4</td></tr><tr><td>area-src-utils</td><td><code>vue-admin-template:src/utils/auth.js</code></td><td>—</td><td>0 处</td><td>2019-02-27</td><td>4</td></tr></tbody></table>
+<h3>节点之间的连线</h3><p class="muted">page-login → area-src-api：同批候选（顺序无代码依据）；area-src-api → area-mock：同批候选（顺序无代码依据）；area-mock → area-src-store：同批候选（顺序无代码依据）；area-src-store → area-src-utils：同批候选（顺序无代码依据）</p>
+</details>
+<footer>由 repotruth 生成 · <a href="https://github.com/SilasSolivagus/dsh-repotruth">https://github.com/SilasSolivagus/dsh-repotruth</a> · v0.3.0</footer>
+</section>
+</body>
+</html>

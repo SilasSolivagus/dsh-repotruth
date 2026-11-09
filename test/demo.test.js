@@ -57,10 +57,11 @@ test('地址识别与文件名推导', () => {
   assert.equal(repoSlug('git@github.com:a/b.git'), 'b')
 })
 
-test('CLI 参数解析：只认 demo 和两个开关', () => {
+test('CLI 参数解析：只认 demo / material 和这几个开关', () => {
   assert.deepEqual(parseArgs(['demo', 'https://x/y.git']), {
     command: 'demo',
     url: 'https://x/y.git',
+    question: null,
     out: null,
     attribution: undefined,
     keepTemp: false,
@@ -73,6 +74,14 @@ test('CLI 参数解析：只认 demo 和两个开关', () => {
   assert.equal(parseArgs(['demo', 'u', '--no-attribution']).attribution, false)
   assert.equal(parseArgs(['demo', 'u', '--keep-temp']).keepTemp, true)
   assert.throws(() => parseArgs(['demo', 'u', '--wat']), /不认识的选项/)
+
+  // material：仓名是位置参数，需求走 --question（两种写法都要认）
+  const material = parseArgs(['material', 'shop', '--question', '结算页怎么做'])
+  assert.equal(material.command, 'material')
+  assert.equal(material.url, 'shop')
+  assert.equal(material.question, '结算页怎么做')
+  assert.equal(parseArgs(['material', 'shop', '--question=登录']).question, '登录')
+  assert.throws(() => parseArgs(['material', 'shop', '--question']), /--question 后面要跟一句需求/)
 })
 
 test('demo 跑通本地仓：输出页有正文、限界、meta 与页脚', async (t) => {
